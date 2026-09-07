@@ -13,6 +13,7 @@ database = []
 
 [dependencies]
 utility = { workspace = true }
+utility_ui = { workspace = true }
 
 dyn-clone = { workspace = true }
 serde = { workspace = true }

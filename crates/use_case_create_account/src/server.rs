@@ -26,26 +26,28 @@ impl Input {
         errr.user_uuid = side_effects.check_is_user_authenticated(&self.user_uuid);
 
         if errr.is_there_error() {
-            return Ok(Err(errr));
+            return Ok(Err(errr).into());
         }
 
         let mut txn = client.begin_transaction().await?;
 
-        let result = async {
+        let result: Result<MyResult, DynamicError> = async {
             let errr = self.state_full_check::<Db>(&mut txn).await?;
 
             if errr.is_there_error() {
-                return Ok(Err(errr));
+                return Ok(Err(errr).into());
             }
 
             let result = self.state_less_operation();
             DbWrite::write(&mut txn, &result).await?;
-            Ok(Ok(result))
+            Ok(Ok(result).into())
         }
         .await;
 
-        if let Ok(Ok(_)) = result {
-            let _ = txn.commit_transaction().await?;
+        if let Ok(a) = &result {
+            if a.is_ok() {
+                let _ = txn.commit_transaction().await?;
+            }
         } else {
             txn.rollback_transaction().await?;
         }

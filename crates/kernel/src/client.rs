@@ -3,8 +3,11 @@ use crate::new_types::UserUuid;
 use crate::request_response::Txn;
 use crate::request_response::TypeOperationsInput;
 use crate::request_response::TypeOperationsResult;
+use utility::process_manager::Dialog as ProcessDialog;
+use utility_ui::domain::Dialog as UiDialog;
+use utility_ui::domain::HashimSignal;
 
-pub trait Cache: Sized {
+pub trait Cache {
     fn new() -> impl Future<Output = Self>;
 
     fn get_all_txn_input(&self) -> impl Future<Output = Vec<Txn<TypeOperationsInput>>>;
@@ -16,4 +19,17 @@ pub trait Cache: Sized {
     fn start_pending_txn_state(&self) -> impl Future<Output = ()>;
 
     fn get_jwt(&self, user_uuid: &UserUuid) -> impl Future<Output = Option<JsonWebTokenType>>;
+}
+
+#[derive(Clone)]
+pub struct DialogSignalAdapter<S: HashimSignal<UiDialog> + Clone + 'static>(pub S);
+
+impl<S: HashimSignal<UiDialog> + Clone + 'static> ProcessDialog for DialogSignalAdapter<S> {
+    fn show(&self) {
+        self.0.set(UiDialog::Show);
+    }
+
+    fn hide(&self) {
+        self.0.set(UiDialog::Hide);
+    }
 }

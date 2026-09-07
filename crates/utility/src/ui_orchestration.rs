@@ -26,7 +26,7 @@ pub async fn handle_fall_back<
 >(
     mut cache: CacheStruct<Mpsc, Subscribe, OperationsInput, OperationsResult>,
     mut sender_to_process_manager: Mpsc::Sender<MessageToProcessManager<Mpsc, Di>>,
-    dialog: &'static Di,
+    dialog: Di,
     process_id: ProcessId,
     data: OperationsInput,
     f: impl Fn(OperationsResult) -> bool + Clone + 'static,

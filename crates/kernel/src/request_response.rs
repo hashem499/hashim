@@ -39,19 +39,10 @@ pub struct Txn<T> {
     pub operation:  T,
 }
 
+//////////////////////////////////////////////////////////////////////
 #[serde]
 pub trait OperationsInput: Debug + DynClone {}
-#[serde]
-pub trait OperationsOk: Debug {}
-#[serde]
-pub trait OperationsResult: Debug {}
-#[serde]
-pub trait ResourceDTO: Debug {}
-
 pub type TypeOperationsInput = Box<dyn OperationsInput>;
-pub type TypeOperationsOk = Box<dyn OperationsOk>;
-pub type TypeOperationsResult = Box<dyn OperationsResult>;
-pub type TypeResourceDTO = Box<dyn ResourceDTO>;
 
 impl Clone for TypeOperationsInput {
     fn clone(&self) -> Self {
@@ -64,3 +55,27 @@ impl<T: OperationsInput + 'static> From<T> for TypeOperationsInput {
         Box::new(input)
     }
 }
+
+//////////////////////////////////////////////////////////////////////
+#[serde]
+pub trait OperationsOk: Debug {}
+pub type TypeOperationsOk = Box<dyn OperationsOk>;
+
+//////////////////////////////////////////////////////////////////////
+#[serde]
+pub trait OperationsResult: Debug {
+    fn into_any(self: Box<Self>) -> Box<dyn Any>;
+    fn is_ok(&self) -> bool;
+}
+
+pub fn downcast_trait<T: Any>(obj: Box<dyn OperationsResult>) -> T {
+    let any = obj.into_any();
+    *any.downcast::<T>().unwrap()
+}
+
+pub type TypeOperationsResult = Box<dyn OperationsResult>;
+
+//////////////////////////////////////////////////////////////////////
+#[serde]
+pub trait ResourceDTO: Debug {}
+pub type TypeResourceDTO = Box<dyn ResourceDTO>;

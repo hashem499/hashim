@@ -1,5 +1,5 @@
 #[cfg(feature = "client")]
-pub mod cache;
+pub mod client;
 pub mod new_types;
 pub mod request_response;
 #[cfg(feature = "server")]
