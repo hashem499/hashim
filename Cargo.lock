@@ -2876,8 +2876,19 @@ dependencies = [
  "kernel",
  "serde",
  "typetag",
+ "use_case_get_all_accounts",
  "utility",
  "utility_ui",
+]
+
+[[package]]
+name = "use_case_get_all_accounts"
+version = "0.1.0"
+dependencies = [
+ "kernel",
+ "serde",
+ "typetag",
+ "utility",
 ]
 
 [[package]]

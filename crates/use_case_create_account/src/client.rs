@@ -1,4 +1,3 @@
-use crate::client::fetches;
 use crate::domain::DatabaseRead;
 use crate::domain::Input;
 use crate::domain::MyResult;
@@ -14,6 +13,7 @@ use kernel::request_response::TypeOperationsResult;
 use kernel::request_response::downcast_trait;
 use kernel::types::MyErrorTrait;
 use std::ops::Deref;
+use use_case_get_all_accounts::client::fetch;
 use utility::actors::MultiProducerSingleConsumer;
 use utility::actors::Receiver;
 use utility::actors::Sender;
@@ -103,7 +103,7 @@ impl CreateAccount {
     pub(crate) async fn update<Rn, Rt, Id, Mpsc, Di, Ch, LongCache, LM>(
         self,
         global_model: &impl GlobalModel,
-        local_model: &LM,
+        local_model: &'static LM,
         cache: CacheStruct<Mpsc, Subscribe, TypeOperationsInput, TypeOperationsResult>,
         mut sender_to_process_manager: Mpsc::Sender<
             MessageToProcessManager<Mpsc, DialogSignalAdapter<Di>>,
@@ -149,7 +149,12 @@ impl CreateAccount {
                 local_model.unit_of_measurement_of_quantity().set(v)
             }
             CreateAccount::Subscribe => {
-                fetches::get_all_accounts::fetch::<Rn, Mpsc, As>(local_model, cache).await
+                fetch::<Rn, Mpsc>(
+                    global_model.selected_company().read(),
+                    global_model.user_uuid().read(),
+                    cache,
+                )
+                .await
             }
         }
     }

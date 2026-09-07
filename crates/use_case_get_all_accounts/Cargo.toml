@@ -1,5 +1,5 @@
 [package]
-name = "use_case_create_account"
+name = "use_case_get_all_accounts"
 version = "0.1.0"
 edition = "2024"
 
@@ -13,9 +13,7 @@ database = []
 
 [dependencies]
 kernel = { workspace = true }
-use_case_get_all_accounts = { workspace = true }
 utility = { workspace = true }
-utility_ui = { workspace = true }
 
 serde = { workspace = true }
 typetag = { workspace = true }
