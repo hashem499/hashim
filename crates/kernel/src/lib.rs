@@ -4,4 +4,6 @@ pub mod new_types;
 pub mod request_response;
 #[cfg(feature = "server")]
 pub mod server;
+#[cfg(feature = "server")]
+pub mod server_methods;
 pub mod types;

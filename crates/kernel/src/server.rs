@@ -2,9 +2,11 @@ use crate::new_types::BranchUuid;
 use crate::new_types::CompanyUuid;
 use crate::new_types::NonceUuid;
 use crate::new_types::UserUuid;
-use crate::types::UserUuidError;
+use crate::request_response::OperationsResult;
+use crate::request_response::TypeResourceDTO;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::pin::Pin;
 use utility::types::DynamicError;
 
 pub struct TheCompaniesAndBranchesHeIn {
@@ -47,6 +49,27 @@ pub trait DBClient {
     ) -> impl Future<Output = Result<TheCompaniesAndBranchesHeIn, DynamicError>>;
 }
 
-pub trait SideEffects {
-    fn check_is_user_authenticated(&self, user_uuid: &UserUuid) -> Option<UserUuidError>;
+pub(crate) type ListOfResources = HashMap<BranchUuid, Vec<TypeResourceDTO>>;
+
+#[derive(Debug, Default)]
+pub struct SideEffects {
+    pub authenticated_users:              HashSet<UserUuid>,
+    pub users_to_resubscribe:             HashSet<UserUuid>,
+    pub resource_to_broadcast_for_branch: ListOfResources,
+}
+
+#[macro_export]
+macro_rules! make_auth_check {
+    ($side_effects:expr, $self:expr, $errr:expr) => {
+        if !$side_effects.authenticated_users.contains(&$self.user_uuid) {
+            $errr.user_uuid = Some(UserUuidError::NotAuthenticated);
+        }
+    };
+}
+
+pub trait ServerOperationsInput {
+    fn handle_operation(
+        self: Box<Self>,
+        side_effects: &mut SideEffects,
+    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn OperationsResult>, DynamicError>>>>;
 }

@@ -1,4 +1,5 @@
 use crate::new_types::NonceUuid;
+use crate::server::ServerOperationsInput;
 use crate::types::HashimError;
 use crate::types::JWTError;
 use crate::types::NonceError;
@@ -41,7 +42,8 @@ pub struct Txn<T> {
 
 //////////////////////////////////////////////////////////////////////
 #[serde]
-pub trait OperationsInput: Debug + DynClone {}
+pub trait OperationsInput: Debug + DynClone + ServerOperationsInput {}
+
 pub type TypeOperationsInput = Box<dyn OperationsInput>;
 
 impl Clone for TypeOperationsInput {
@@ -77,5 +79,11 @@ pub type TypeOperationsResult = Box<dyn OperationsResult>;
 
 //////////////////////////////////////////////////////////////////////
 #[serde]
-pub trait ResourceDTO: Debug {}
+pub trait ResourceDTO: Debug + DynClone {}
 pub type TypeResourceDTO = Box<dyn ResourceDTO>;
+
+impl Clone for TypeResourceDTO {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}

@@ -2,10 +2,12 @@ use crate::domain::DatabaseRead;
 use crate::domain::Input;
 use crate::domain::MyResult;
 use crate::domain::Ok;
+use kernel::make_auth_check;
 use kernel::server::DBClient;
 use kernel::server::SideEffects;
 use kernel::types::DatabaseWrite;
 use kernel::types::MyErrorTrait;
+use kernel::types::UserUuidError;
 use utility::row_id::RowId;
 use utility::types::DynamicError;
 
@@ -15,14 +17,13 @@ impl Input {
         Cli: DBClient,
         Db: for<'a> DatabaseRead<Db<'a> = Cli>,
         DbWrite: for<'a> DatabaseWrite<Db<'a> = Cli::Txn<'a>, Input = Ok>,
-        SEff: SideEffects,
     >(
         &self,
-        side_effects: &mut SEff,
+        side_effects: &mut SideEffects,
         client: &mut Cli,
     ) -> Result<MyResult, DynamicError> {
         let mut errr = self.state_less_check::<Id>();
-        errr.user_uuid = side_effects.check_is_user_authenticated(&self.user_uuid);
+        make_auth_check!(side_effects, self, errr);
 
         if errr.is_there_error() {
             return Ok(Err(errr).into());
