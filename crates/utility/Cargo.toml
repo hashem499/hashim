@@ -3,47 +3,8 @@ name = "utility"
 version = "0.1.0"
 edition = "2024"
 
-[features]
-infrastructure = [
-    "tokio",
-    "tokio-tungstenite",
-    "futures",
-    "chrono",
-    "derive_more",
-    "futures",
-    "futures-util",
-    "getrandom",
-    "postcard",
-    "regex",
-    "uuid",
-    "argon2",
-    "jsonwebtoken",
-    "tokio",
-    "gloo-timers",
-    "wasm-bindgen-futures",
-]
-
 [dependencies]
+infrastructure = { workspace = true }
+
+anyhow = { workspace = true }
 serde = { workspace = true }
-
-chrono = { workspace = true, optional = true }
-derive_more = { workspace = true, optional = true }
-futures = { workspace = true, optional = true }
-futures-util = { workspace = true, optional = true }
-getrandom = { workspace = true, optional = true }
-postcard = { workspace = true, optional = true }
-regex = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-tokio-tungstenite = { workspace = true, optional = true }
-uuid = { workspace = true, optional = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-argon2 = { workspace = true, optional = true }
-jsonwebtoken = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
-tokio-tungstenite = { workspace = true, optional = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-gloo-net = { workspace = true, optional = true }
-gloo-timers = { workspace = true, optional = true }
-wasm-bindgen-futures = { workspace = true, optional = true }

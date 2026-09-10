@@ -1,9 +1,15 @@
-use crate::actors::MultiProducerSingleConsumer;
-use crate::actors::Receiver;
-use crate::actors::Sender;
-use crate::random_number::RandomNumber;
-use crate::runtime::JoinHandle;
-use crate::runtime::Runtime;
+use infrastructure::actors::Mpsc;
+use infrastructure::actors::MpscReceiver;
+use infrastructure::actors::MpscSender;
+use infrastructure::actors::MultiProducerSingleConsumer;
+use infrastructure::actors::Receiver;
+use infrastructure::actors::Sender;
+use infrastructure::random_number::RandomNumber;
+use infrastructure::random_number::Rn;
+use infrastructure::runtime::Jh;
+use infrastructure::runtime::JoinHandle;
+use infrastructure::runtime::Rt;
+use infrastructure::runtime::Runtime;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -13,7 +19,7 @@ use std::time::Duration;
 pub struct ProcessId(u16);
 
 impl ProcessId {
-    pub fn new<Rn: RandomNumber>() -> Self {
+    pub fn new() -> Self {
         ProcessId(Rn::generate() as u16)
     }
 }
@@ -30,9 +36,9 @@ pub enum UserConsent {
     CancelOperation,
 }
 
-pub enum MessageFromProcess<Mpsc: MultiProducerSingleConsumer, Di: Dialog> {
+pub enum MessageFromProcess<Di: Dialog> {
     Subscribe {
-        sender: Mpsc::Sender<MessageToProcess>,
+        sender: MpscSender<MessageToProcess>,
         dialog: Di,
     },
     Response {
@@ -41,14 +47,14 @@ pub enum MessageFromProcess<Mpsc: MultiProducerSingleConsumer, Di: Dialog> {
     },
 }
 
-pub enum MessageToProcessManager<Mpsc: MultiProducerSingleConsumer, Di: Dialog> {
+pub enum MessageToProcessManager<Di: Dialog> {
     FromUser {
         process_id: ProcessId,
         consent:    UserConsent,
     },
     FromProcess {
         process_id: ProcessId,
-        message:    MessageFromProcess<Mpsc, Di>,
+        message:    MessageFromProcess<Di>,
     },
 }
 
@@ -58,27 +64,26 @@ pub enum MessageToProcess {
     CancelOperation,
 }
 
-pub fn process_manager_actor<Mpsc: MultiProducerSingleConsumer, Di: Dialog, Rt: Runtime>()
--> Mpsc::Sender<MessageToProcessManager<Mpsc, Di>> {
+pub fn process_manager_actor<Di: Dialog>() -> MpscSender<MessageToProcessManager<Di>> {
     let (sender, mut receiver): (
-        <Mpsc as MultiProducerSingleConsumer>::Sender<MessageToProcessManager<Mpsc, Di>>,
-        <Mpsc as MultiProducerSingleConsumer>::Receiver<MessageToProcessManager<Mpsc, Di>>,
+        MpscSender<MessageToProcessManager<Di>>,
+        MpscReceiver<MessageToProcessManager<Di>>,
     ) = Mpsc::channel();
 
     Rt::spawn_local(async move {
-        struct ProcessInfo<Rt: Runtime, Mpsc: MultiProducerSingleConsumer, Di: Dialog> {
-            sender:                  Mpsc::Sender<MessageToProcess>,
+        struct ProcessInfo<Di: Dialog> {
+            sender:                  MpscSender<MessageToProcess>,
             dialog:                  Di,
-            timer_handle:            Rt::JoinHandle<()>,
+            timer_handle:            Jh<()>,
             is_response_from_server: Option<bool>,
             is_ok:                   Option<bool>,
             is_user_want_to_proceed: UserConsent,
         }
 
-        let mut process_states = HashMap::<ProcessId, ProcessInfo<Rt, Mpsc, Di>>::new();
+        let mut process_states = HashMap::<ProcessId, ProcessInfo<Di>>::new();
 
         loop {
-            let msg: MessageToProcessManager<_, Di> = receiver.recv().await.unwrap();
+            let msg: MessageToProcessManager<Di> = receiver.recv().await.unwrap();
 
             match msg {
                 MessageToProcessManager::FromUser {
@@ -93,7 +98,7 @@ pub fn process_manager_actor<Mpsc: MultiProducerSingleConsumer, Di: Dialog, Rt: 
 
                     match consent {
                         UserConsent::WaitForServerResponse => {
-                            table.timer_handle = timer_handle::<Rt, Di>(table.dialog.clone());
+                            table.timer_handle = timer_handle::<Di>(table.dialog.clone());
                         }
                         UserConsent::DontWaitForServerResponse => {
                             table.sender.send(MessageToProcess::FallBackToCache).await.unwrap();
@@ -112,7 +117,7 @@ pub fn process_manager_actor<Mpsc: MultiProducerSingleConsumer, Di: Dialog, Rt: 
                             sender,
                             dialog,
                         } => {
-                            let timer_handle = timer_handle::<Rt, Di>(dialog.clone());
+                            let timer_handle = timer_handle::<Di>(dialog.clone());
 
                             process_states.insert(process_id, ProcessInfo {
                                 sender,
@@ -147,7 +152,7 @@ pub fn process_manager_actor<Mpsc: MultiProducerSingleConsumer, Di: Dialog, Rt: 
     sender
 }
 
-fn timer_handle<Rt: Runtime, Di: Dialog>(dialog_clone: Di) -> Rt::JoinHandle<()> {
+fn timer_handle<Di: Dialog>(dialog_clone: Di) -> Jh<()> {
     Rt::abortable_spawn_local(async move {
         Rt::sleep(Duration::from_secs(5)).await;
         dialog_clone.show();

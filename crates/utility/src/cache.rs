@@ -1,7 +1,12 @@
-use crate::actors::MultiProducerSingleConsumer;
-use crate::actors::Sender;
-use crate::encode_decode::Coding;
-use crate::runtime::Runtime;
+use infrastructure::actors::Mpsc;
+use infrastructure::actors::MpscReceiver;
+use infrastructure::actors::MpscSender;
+use infrastructure::actors::MultiProducerSingleConsumer;
+use infrastructure::actors::Sender;
+use infrastructure::encode_decode::Coding;
+use infrastructure::encode_decode::Ed;
+use infrastructure::runtime::Rt;
+use infrastructure::runtime::Runtime;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -24,41 +29,34 @@ pub enum Response<OpResult: 'static> {
     },
 }
 
-pub enum MessageToCache<
-    Mpsc: MultiProducerSingleConsumer,
-    Subscribe: 'static + Hash + Eq + Clone,
-    OpInput: 'static,
-    OpResult: 'static,
-> {
+pub enum MessageToCache<Subscribe: 'static + Hash + Eq + Clone, OpInput: 'static, OpResult: 'static>
+{
     WeAreBackOnline,
     DataFromServer(Vec<u8>),
     Subscribe {
         component_id:         u16,
         list_of_subscribtion: &'static [Subscribe],
-        sender:               Mpsc::Sender<()>,
+        sender:               MpscSender<()>,
     },
     UnSubscribe {
         component_id: u16,
     },
     Query {
         strategy:   CachingStrategy,
-        sender:     Mpsc::Sender<Response<OpResult>>,
+        sender:     MpscSender<Response<OpResult>>,
         txn_number: u64,
         data:       OpInput,
     },
 }
 
 pub trait CacheActorUtils {
-    type Mpsc: MultiProducerSingleConsumer;
     type Subscribe: 'static + Hash + Eq + Clone;
     type OpInput;
     type OpResult;
 
     fn cache_receiver(
-        receiver: &mut <Self::Mpsc as MultiProducerSingleConsumer>::Receiver<
-            MessageToCache<Self::Mpsc, Self::Subscribe, Self::OpInput, Self::OpResult>,
-        >,
-    ) -> impl Future<Output = MessageToCache<Self::Mpsc, Self::Subscribe, Self::OpInput, Self::OpResult>>;
+        receiver: &mut MpscReceiver<MessageToCache<Self::Subscribe, Self::OpInput, Self::OpResult>>,
+    ) -> impl Future<Output = MessageToCache<Self::Subscribe, Self::OpInput, Self::OpResult>>;
 
     type NetworkSender;
     fn send_to_network(sender: &mut Self::NetworkSender, data: Vec<u8>)
@@ -158,19 +156,17 @@ pub enum CachingStrategy {
     WriteServerOnly,
 }
 
-pub struct CacheStruct<Mpsc, Subscribe, OpInput, OpResult>
+pub struct CacheStruct<Subscribe, OpInput, OpResult>
 where
-    Mpsc: MultiProducerSingleConsumer,
     Subscribe: 'static + Hash + Eq + Clone,
     OpInput: 'static,
     OpResult: 'static,
 {
-    sender: Mpsc::Sender<MessageToCache<Mpsc, Subscribe, OpInput, OpResult>>,
+    sender: MpscSender<MessageToCache<Subscribe, OpInput, OpResult>>,
 }
 
-impl<Mpsc, Subscribe, OpInput, OpResult> Clone for CacheStruct<Mpsc, Subscribe, OpInput, OpResult>
+impl<Subscribe, OpInput, OpResult> Clone for CacheStruct<Subscribe, OpInput, OpResult>
 where
-    Mpsc: MultiProducerSingleConsumer,
     Subscribe: 'static + Hash + Eq + Clone,
 {
     fn clone(&self) -> Self {
@@ -180,30 +176,18 @@ where
     }
 }
 
-impl<Mpsc, Subscribe, OpInput, OpResult> CacheStruct<Mpsc, Subscribe, OpInput, OpResult>
+impl<Subscribe, OpInput, OpResult> CacheStruct<Subscribe, OpInput, OpResult>
 where
-    Mpsc: MultiProducerSingleConsumer,
     Subscribe: 'static + Hash + Eq + Clone,
 {
-    pub fn new<
-        Rt: Runtime,
-        Ed: Coding,
-        Cu: CacheActorUtils<OpResult = OpResult, Subscribe = Subscribe, Mpsc = Mpsc> + 'static,
-    >(
-        receiver_to_cache: <Cu::Mpsc as MultiProducerSingleConsumer>::Receiver<
-            MessageToCache<Cu::Mpsc, Cu::Subscribe, Cu::OpInput, Cu::OpResult>,
-        >,
-        sender_to_cache: Mpsc::Sender<MessageToCache<Mpsc, Subscribe, OpInput, OpResult>>,
+    pub fn new<Cu: CacheActorUtils<OpResult = OpResult, Subscribe = Subscribe> + 'static>(
+        receiver_to_cache: MpscReceiver<MessageToCache<Cu::Subscribe, Cu::OpInput, Cu::OpResult>>,
+        sender_to_cache: MpscSender<MessageToCache<Subscribe, OpInput, OpResult>>,
         sender_to_network: Cu::NetworkSender,
         sender_to_error: Cu::ErrorSender,
         is_online: Cu::NetworkStatus,
     ) -> Self {
-        Self::cache_actor::<Rt, Ed, Cu>(
-            receiver_to_cache,
-            sender_to_network,
-            sender_to_error,
-            is_online,
-        );
+        Self::cache_actor::<Cu>(receiver_to_cache, sender_to_network, sender_to_error, is_online);
 
         Self {
             sender: sender_to_cache,
@@ -215,7 +199,7 @@ where
         strategy: CachingStrategy,
         txn_number: u64,
         data: OpInput,
-    ) -> Mpsc::Receiver<Response<OpResult>> {
+    ) -> MpscReceiver<Response<OpResult>> {
         let (sender, receiver) = Mpsc::channel();
 
         self.sender
@@ -235,7 +219,7 @@ where
         &mut self,
         component_id: u16,
         list_of_subscribtion: &'static [Subscribe],
-    ) -> Mpsc::Receiver<()> {
+    ) -> MpscReceiver<()> {
         let (sender, receiver) = Mpsc::channel();
 
         self.sender
@@ -259,13 +243,9 @@ where
             .unwrap();
     }
 
-    fn cache_actor<
-        Rt: Runtime,
-        Ed: Coding,
-        Cu: CacheActorUtils<OpResult = OpResult, Subscribe = Subscribe, Mpsc = Mpsc> + 'static,
-    >(
-        mut receiver_to_cache: <Cu::Mpsc as MultiProducerSingleConsumer>::Receiver<
-            MessageToCache<Cu::Mpsc, Cu::Subscribe, Cu::OpInput, Cu::OpResult>,
+    fn cache_actor<Cu: CacheActorUtils<OpResult = OpResult, Subscribe = Subscribe> + 'static>(
+        mut receiver_to_cache: MpscReceiver<
+            MessageToCache<Cu::Subscribe, Cu::OpInput, Cu::OpResult>,
         >,
         mut sender_to_network: Cu::NetworkSender,
         mut sender_to_error: Cu::ErrorSender,
@@ -273,8 +253,8 @@ where
     ) {
         Rt::spawn_local(async move {
             let mut pool_of_senders =
-                HashMap::<u64, Mpsc::Sender<Response<OpResult>>>::with_capacity(100);
-            let mut pool_of_pokers = HashMap::<u16, Mpsc::Sender<()>>::with_capacity(10);
+                HashMap::<u64, MpscSender<Response<OpResult>>>::with_capacity(100);
+            let mut pool_of_pokers = HashMap::<u16, MpscSender<()>>::with_capacity(10);
             let mut pool_of_subscribes = HashMap::<Subscribe, HashSet<u16>>::with_capacity(100);
 
             let mut cache = Cu::new_cache().await;
@@ -348,7 +328,7 @@ where
                                     }
                                 }
 
-                                poke_the_subs::<Mpsc, Subscribe>(
+                                poke_the_subs::<Subscribe>(
                                     &mut pool_of_pokers,
                                     &pool_of_subscribes,
                                     &subs_to_poke,
@@ -370,7 +350,7 @@ where
                                     Cu::collect_subs_to_poke(&mut subs_to_poke, &resources);
                                 }
 
-                                poke_the_subs::<Mpsc, Subscribe>(
+                                poke_the_subs::<Subscribe>(
                                     &mut pool_of_pokers,
                                     &pool_of_subscribes,
                                     &subs_to_poke,
@@ -490,7 +470,7 @@ where
                                 }
                                 Cu::write_input(&cache, txn_number, &data).await;
 
-                                poke_the_subs::<Mpsc, Subscribe>(
+                                poke_the_subs::<Subscribe>(
                                     &mut pool_of_pokers,
                                     &pool_of_subscribes,
                                     &subs_to_poke,
@@ -519,7 +499,7 @@ where
                                 }
                                 Cu::write_input(&cache, txn_number, &data).await;
 
-                                poke_the_subs::<Mpsc, Subscribe>(
+                                poke_the_subs::<Subscribe>(
                                     &mut pool_of_pokers,
                                     &pool_of_subscribes,
                                     &subs_to_poke,
@@ -573,8 +553,8 @@ where
     }
 }
 
-async fn poke_the_subs<Mpsc: MultiProducerSingleConsumer, Subscribe: 'static + Hash + Eq>(
-    pool_of_pokers: &mut HashMap<u16, Mpsc::Sender<()>>,
+async fn poke_the_subs<Subscribe: 'static + Hash + Eq>(
+    pool_of_pokers: &mut HashMap<u16, MpscSender<()>>,
     pool_of_subscribes: &HashMap<Subscribe, HashSet<u16>>,
     subs_to_poke: &HashSet<Subscribe>,
 ) {

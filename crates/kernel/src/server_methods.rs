@@ -11,23 +11,27 @@ use crate::server::SideEffects;
 use crate::types::HashimError;
 use crate::types::JWTError;
 use crate::types::NonceError;
+use infrastructure::actors::Mpsc;
+use infrastructure::actors::MpscReceiver;
+use infrastructure::actors::MpscSender;
+use infrastructure::actors::MultiProducerSingleConsumer;
+use infrastructure::actors::Receiver;
+use infrastructure::actors::Sender;
+use infrastructure::encode_decode::Coding;
+use infrastructure::encode_decode::Ed;
+use infrastructure::jwt::JWT;
+use infrastructure::random_number::RandomNumber;
+use infrastructure::random_number::Rn;
+use infrastructure::row_id::Id;
+use infrastructure::row_id::RowId;
+use infrastructure::runtime::Either;
+use infrastructure::runtime::Rt;
+use infrastructure::runtime::Runtime;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use utility::actors::MultiProducerSingleConsumer;
-use utility::actors::Receiver;
-use utility::actors::Sender;
-use utility::authentication::HashedPassword;
-use utility::encode_decode::Coding;
-use utility::functions::Regex;
-use utility::jwt::JWT;
-use utility::random_number::RandomNumber;
-use utility::row_id::RowId;
-use utility::runtime::Either;
-use utility::runtime::Runtime;
-use utility::time::Time;
 use utility::types::DynamicError;
 use utility::types::HashMapWithHashMapValue;
 use utility::types::LogError;
@@ -49,18 +53,16 @@ pub trait WSServer: 'static {
     fn close(self) -> impl Future<Output = Result<(), DynamicError>>;
 }
 
-pub struct ServerMethods<Mpsc: MultiProducerSingleConsumer, Jwt: JWT, Db: Database> {
+pub struct ServerMethods<Jwt: JWT, Db: Database> {
     database:                    Db,
     jwt:                         Jwt,
-    pub(crate) sender_to_broker: Mpsc::Sender<MessageToBroker<Mpsc>>,
+    pub(crate) sender_to_broker: MpscSender<MessageToBroker>,
 }
 
-impl<Mpsc: MultiProducerSingleConsumer, Jwt: JWT, Db: Database<Client = Cli>, Cli: DBClient>
-    ServerMethods<Mpsc, Jwt, Db>
-{
-    pub async fn new<Rt: Runtime>() -> Self {
+impl<Jwt: JWT, Db: Database<Client = Cli>, Cli: DBClient> ServerMethods<Jwt, Db> {
+    pub async fn new() -> Self {
         let (sender_to_broker, receiver_to_broker) = Mpsc::channel();
-        Self::broker_actor::<Rt>(receiver_to_broker);
+        Self::broker_actor(receiver_to_broker);
 
         Self {
             database: Db::new().await,
@@ -69,19 +71,7 @@ impl<Mpsc: MultiProducerSingleConsumer, Jwt: JWT, Db: Database<Client = Cli>, Cl
         }
     }
 
-    pub fn server_actor<
-        Rt: Runtime,
-        Ws: WSServer,
-        Rn: RandomNumber,
-        Ed: Coding,
-        Id: RowId,
-        Ti: Time,
-        Rg: Regex,
-        Auth: HashedPassword,
-    >(
-        self: Arc<Self>,
-        mut session: Ws,
-    ) {
+    pub fn server_actor<Ws: WSServer>(self: Arc<Self>, mut session: Ws) {
         Rt::spawn_local(async move {
             let mut sender_to_broker = self.sender_to_broker.clone();
             let (sender_to_server, mut receiver_to_server) =
@@ -127,7 +117,7 @@ impl<Mpsc: MultiProducerSingleConsumer, Jwt: JWT, Db: Database<Client = Cli>, Cl
 
                                 dbg!(&input);
                                 let mut side_effects = SideEffects::default();
-                                let output = push_data::<Id, Ti, Auth, Jwt, Cli>(
+                                let output = push_data::<Jwt, Cli>(
                                     input,
                                     &mut side_effects,
                                     &mut client,
@@ -233,14 +223,11 @@ impl<Mpsc: MultiProducerSingleConsumer, Jwt: JWT, Db: Database<Client = Cli>, Cl
         });
     }
 
-    pub(crate) fn broker_actor<Rt: Runtime>(
-        mut receiver_to_broker: Mpsc::Receiver<MessageToBroker<Mpsc>>,
-    ) {
+    pub(crate) fn broker_actor(mut receiver_to_broker: MpscReceiver<MessageToBroker>) {
         Rt::spawn_local(async move {
             let mut pool_of_pubsub_for_branch: broker_functions::UserSubscribes =
                 HashMap::with_capacity(10000);
-            let mut pool_of_server_facad_channels: UserSenders<Mpsc> =
-                HashMap::with_capacity(10000);
+            let mut pool_of_server_facad_channels: UserSenders = HashMap::with_capacity(10000);
 
             loop {
                 let message = receiver_to_broker.recv().await.unwrap();
@@ -322,7 +309,7 @@ impl<Mpsc: MultiProducerSingleConsumer, Jwt: JWT, Db: Database<Client = Cli>, Cl
     }
 }
 
-async fn push_data<Id: RowId, Ti: Time, Auth: HashedPassword, Jwt: JWT, Cli: DBClient>(
+async fn push_data<Jwt: JWT, Cli: DBClient>(
     input: Input,
     side_effects: &mut SideEffects,
     client: &mut Cli,
@@ -353,7 +340,7 @@ async fn push_data<Id: RowId, Ti: Time, Auth: HashedPassword, Jwt: JWT, Cli: DBC
     let is_nonce_used =
         client.write_nonce_if_not_used_and_return_is_nonce_used(&input.nonce).await?;
 
-    if !check_nonce_if_valid::<Id>(&input.nonce, is_nonce_used) {
+    if !check_nonce_if_valid(&input.nonce, is_nonce_used) {
         the_return_result.nonce = Err(NonceError::Invalid);
     }
 
@@ -373,7 +360,7 @@ async fn push_data<Id: RowId, Ti: Time, Auth: HashedPassword, Jwt: JWT, Cli: DBC
     Ok(the_return_result)
 }
 
-fn check_nonce_if_valid<Id: RowId>(nonce: &UuidType, is_used: bool) -> bool {
+fn check_nonce_if_valid(nonce: &UuidType, is_used: bool) -> bool {
     if is_used {
         return false;
     }
@@ -486,17 +473,17 @@ pub(crate) struct AllSubscribes {
     pub(crate) branches: broker_functions::UserSubscribes,
 }
 
-type UserSenders<Mpsc> = HashMap<
+type UserSenders = HashMap<
     UserUuid,
-    HashMap<u64, <Mpsc as MultiProducerSingleConsumer>::Sender<Vec<TypeResourceDTO>>>, // because user may have multiple web socket connection
+    HashMap<u64, MpscSender<Vec<TypeResourceDTO>>>, // because user may have multiple web socket connection
 >;
 
-pub(crate) enum MessageToBroker<Mpsc: MultiProducerSingleConsumer> {
+pub(crate) enum MessageToBroker {
     Subscribe {
         connection_id:        u64,
         list_of_subscribtion: AllSubscribes,
         users_uuids:          HashSet<UserUuid>,
-        sender_to_server:     Mpsc::Sender<Vec<TypeResourceDTO>>,
+        sender_to_server:     MpscSender<Vec<TypeResourceDTO>>,
     },
     Unsubscribe {
         connection_id: u64,

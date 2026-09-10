@@ -1,13 +1,13 @@
 use crate::domain::Input;
 use crate::domain::MyResult;
+use infrastructure::random_number::RandomNumber;
+use infrastructure::random_number::Rn;
 use kernel::new_types::CompanyUuid;
 use kernel::new_types::UserUuid;
 use kernel::request_response::TypeOperationsInput;
 use kernel::request_response::TypeOperationsResult;
-use utility::actors::MultiProducerSingleConsumer;
 use utility::cache::CacheStruct;
 use utility::cache::CachingStrategy;
-use utility::random_number::RandomNumber;
 use utility::types::ReadAndSet;
 use utility::ui_orchestration::Subscribe;
 
@@ -18,10 +18,10 @@ pub trait GlobalModel {
 
 type Type3 = MyResult;
 
-pub async fn fetch<Rn: RandomNumber, Mpsc: MultiProducerSingleConsumer>(
+pub async fn fetch(
     selected_company: CompanyUuid,
     user_uuid: UserUuid,
-    mut cache: CacheStruct<Mpsc, Subscribe, TypeOperationsInput, TypeOperationsResult>,
+    mut cache: CacheStruct<Subscribe, TypeOperationsInput, TypeOperationsResult>,
 ) {
     let company_uuid = selected_company;
 

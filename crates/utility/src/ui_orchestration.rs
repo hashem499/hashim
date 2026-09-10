@@ -1,6 +1,3 @@
-use crate::actors::MultiProducerSingleConsumer;
-use crate::actors::Receiver;
-use crate::actors::Sender;
 use crate::cache::CacheStruct;
 use crate::cache::CachingStrategy;
 use crate::cache::Response;
@@ -9,23 +6,23 @@ use crate::process_manager::MessageFromProcess;
 use crate::process_manager::MessageToProcess;
 use crate::process_manager::MessageToProcessManager;
 use crate::process_manager::ProcessId;
-use crate::random_number::RandomNumber;
-use crate::runtime::JoinHandle;
-use crate::runtime::Runtime;
+use infrastructure::actors::Mpsc;
+use infrastructure::actors::MpscSender;
+use infrastructure::actors::MultiProducerSingleConsumer;
+use infrastructure::actors::Receiver;
+use infrastructure::actors::Sender;
+use infrastructure::random_number::RandomNumber;
+use infrastructure::random_number::Rn;
+use infrastructure::runtime::JoinHandle;
+use infrastructure::runtime::Rt;
+use infrastructure::runtime::Runtime;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Subscribe(pub &'static str);
 
-pub async fn handle_fall_back<
-    Rn: RandomNumber,
-    Rt: Runtime,
-    Mpsc: MultiProducerSingleConsumer,
-    Di: Dialog,
-    OperationsInput: Clone,
-    OperationsResult,
->(
-    mut cache: CacheStruct<Mpsc, Subscribe, OperationsInput, OperationsResult>,
-    mut sender_to_process_manager: Mpsc::Sender<MessageToProcessManager<Mpsc, Di>>,
+pub async fn handle_fall_back<Di: Dialog, OperationsInput: Clone, OperationsResult>(
+    mut cache: CacheStruct<Subscribe, OperationsInput, OperationsResult>,
+    mut sender_to_process_manager: MpscSender<MessageToProcessManager<Di>>,
     dialog: Di,
     process_id: ProcessId,
     data: OperationsInput,
@@ -38,7 +35,7 @@ pub async fn handle_fall_back<
     let mut cache1 = cache.clone();
     let mut sender_to_process_manager1 = sender_to_process_manager.clone();
 
-    let mut handle = <Rt>::abortable_spawn_local(async move {
+    let mut handle = Rt::abortable_spawn_local(async move {
         let mut receiver_to_response =
             cache1.send_to_cache_actor(CachingStrategy::WriteServerOnly, txn_number, data1).await;
 
@@ -63,7 +60,7 @@ pub async fn handle_fall_back<
         }
     });
 
-    let (sender, mut receiver_to_process) = <Mpsc>::channel();
+    let (sender, mut receiver_to_process) = Mpsc::channel();
     sender_to_process_manager
         .send(MessageToProcessManager::FromProcess {
             process_id,
@@ -96,14 +93,8 @@ pub async fn handle_fall_back<
     handle.abort().await;
 }
 
-pub fn spawn_listener<
-    Rn: RandomNumber,
-    Rt: Runtime,
-    Mpsc: MultiProducerSingleConsumer,
-    OperationsInput: Clone,
-    OperationsResult,
->(
-    mut cache: CacheStruct<Mpsc, Subscribe, OperationsInput, OperationsResult>,
+pub fn spawn_listener<OperationsInput: Clone, OperationsResult>(
+    mut cache: CacheStruct<Subscribe, OperationsInput, OperationsResult>,
     list_of_subscribtion: &'static [Subscribe],
     data: OperationsInput,
     is_error: impl Fn(OperationsResult) + 'static,

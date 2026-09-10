@@ -35,6 +35,7 @@ pub trait Runtime: 'static {
 }
 
 pub type Rt = target::S;
+pub type Jh<T> = join_handle::S<T>;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod target {

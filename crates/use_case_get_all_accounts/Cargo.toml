@@ -10,8 +10,10 @@ cache = []
 database = []
 
 [dependencies]
+infrastructure = { workspace = true }
 kernel = { workspace = true }
 utility = { workspace = true }
 
+anyhow = { workspace = true }
 serde = { workspace = true }
 typetag = { workspace = true }

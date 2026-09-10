@@ -4,12 +4,12 @@ use crate::types::HashimError;
 use crate::types::JWTError;
 use crate::types::NonceError;
 use dyn_clone::DynClone;
+use infrastructure::jwt::JsonWebTokenType;
 use serde::Deserialize;
 use serde::Serialize;
 use std::any::Any;
 use std::fmt::Debug;
 use typetag::serde;
-use utility::jwt::JsonWebTokenType;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) enum FromServer {

@@ -10,9 +10,11 @@ cache = []
 database = []
 
 [dependencies]
+infrastructure = { workspace = true }
 utility = { workspace = true }
 utility_ui = { workspace = true }
 
+anyhow = { workspace = true }
 dyn-clone = { workspace = true }
 serde = { workspace = true }
 typetag = { workspace = true }

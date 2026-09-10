@@ -1535,7 +1535,9 @@ dependencies = [
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "dyn-clone",
+ "infrastructure",
  "serde",
  "typetag",
  "utility",
@@ -2908,6 +2910,8 @@ dependencies = [
 name = "use_case_get_all_accounts"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "infrastructure",
  "kernel",
  "serde",
  "typetag",
@@ -2930,22 +2934,9 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 name = "utility"
 version = "0.1.0"
 dependencies = [
- "argon2",
- "chrono",
- "derive_more",
- "futures",
- "futures-util",
- "getrandom 0.4.3",
- "gloo-net",
- "gloo-timers 0.4.0",
- "jsonwebtoken",
- "postcard",
- "regex",
+ "anyhow",
+ "infrastructure",
  "serde",
- "tokio",
- "tokio-tungstenite",
- "uuid",
- "wasm-bindgen-futures",
 ]
 
 [[package]]

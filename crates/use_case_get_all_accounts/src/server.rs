@@ -13,7 +13,6 @@ use kernel::types::MyErrorTrait;
 use kernel::types::UserUuidError;
 use std::pin::Pin;
 use std::sync::OnceLock;
-use utility::row_id::RowId;
 use utility::types::DynamicError;
 
 pub static REGISTRY: OnceLock<&dyn DatabaseRead<Db = &dyn DBClient>> = OnceLock::new();
