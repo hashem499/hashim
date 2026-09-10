@@ -1,0 +1,30 @@
+[package]
+name = "infrastructure"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+
+chrono = { workspace = true }
+derive_more = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+getrandom = { workspace = true }
+postcard = { workspace = true }
+regex = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+uuid = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+argon2 = { workspace = true }
+jsonwebtoken = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-net = { workspace = true }
+gloo-timers = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
