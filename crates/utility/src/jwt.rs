@@ -18,7 +18,6 @@ impl From<String> for JsonWebTokenType {
     }
 }
 
-#[cfg(feature = "server")]
 pub trait JWT: 'static {
     fn new() -> Self;
     fn sign<Subject: Serialize + for<'de> Deserialize<'de> + Clone>(

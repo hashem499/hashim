@@ -3,34 +3,40 @@ use crate::domain::Input;
 use crate::domain::MyResult;
 use crate::domain::Ok;
 use kernel::make_auth_check;
+use kernel::request_response::OperationsResult;
+use kernel::request_response::TypeOperationsResult;
 use kernel::server::DBClient;
+use kernel::server::ServerOperationsInput;
 use kernel::server::SideEffects;
 use kernel::types::DatabaseWrite;
 use kernel::types::MyErrorTrait;
 use kernel::types::UserUuidError;
+use std::pin::Pin;
+use std::sync::OnceLock;
 use utility::row_id::RowId;
 use utility::types::DynamicError;
 
-impl Input {
-    pub(crate) async fn handle_operation<
-        Id: RowId,
-        Cli: DBClient,
-        Db: for<'a> DatabaseRead<Db<'a> = Cli>,
-        DbWrite: for<'a> DatabaseWrite<Db<'a> = Cli::Txn<'a>, Input = Ok>,
-    >(
-        &self,
+pub static REGISTRY: OnceLock<&dyn DatabaseRead<Db = &dyn DBClient>> = OnceLock::new();
+
+impl ServerOperationsInput for Input {
+    fn handle_operation(
+        self: Box<Self>,
         side_effects: &mut SideEffects,
-        client: &mut Cli,
-    ) -> Result<MyResult, DynamicError> {
-        let mut errr = self.state_less_check::<Id>();
-        make_auth_check!(side_effects, self, errr);
+        client: &mut dyn DBClient,
+    ) -> Pin<Box<dyn Future<Output = Result<TypeOperationsResult, DynamicError>>>> {
+        Box::pin(async {
+            let mut errr = self.state_less_check();
+            make_auth_check!(side_effects, self, errr);
 
-        if errr.is_there_error() {
-            return Ok(Err(errr).into());
-        }
+            if errr.is_there_error() {
+                return Ok(TypeOperationsResult::from(MyResult::from(Err(errr))));
+            }
 
-        let ok = self.state_full_operation::<Db>(client).await?;
+            let reader = *REGISTRY.get().unwrap();
 
-        Ok(Ok(ok).into())
+            let ok = self.state_full_operation(client, reader).await?;
+
+            Ok(TypeOperationsResult::from(MyResult::from(Ok(ok))))
+        })
     }
 }

@@ -43,7 +43,6 @@ pub struct Txn<T> {
 //////////////////////////////////////////////////////////////////////
 #[serde]
 pub trait OperationsInput: Debug + DynClone + ServerOperationsInput {}
-
 pub type TypeOperationsInput = Box<dyn OperationsInput>;
 
 impl Clone for TypeOperationsInput {
@@ -76,6 +75,12 @@ pub fn downcast_trait<T: Any>(obj: Box<dyn OperationsResult>) -> T {
 }
 
 pub type TypeOperationsResult = Box<dyn OperationsResult>;
+
+impl<T: OperationsResult + 'static> From<T> for TypeOperationsResult {
+    fn from(input: T) -> Self {
+        Box::new(input)
+    }
+}
 
 //////////////////////////////////////////////////////////////////////
 #[serde]

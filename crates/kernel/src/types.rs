@@ -6,18 +6,20 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::pin::Pin;
 use std::str::FromStr;
 use utility::types::DynamicError;
 
-pub trait DatabaseRead {
-    type Db<'a>;
+pub trait DatabaseRead: Sync + Send {
+    type Db;
     type Input;
     type Output;
 
     fn read(
-        db: &mut Self::Db<'_>,
+        &self,
+        db: &mut Self::Db,
         input: &Self::Input,
-    ) -> impl Future<Output = Result<Self::Output, DynamicError>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Self::Output, DynamicError>>>>;
 }
 
 pub trait DatabaseWrite {

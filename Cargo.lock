@@ -1415,6 +1415,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "infrastructure"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "chrono",
+ "derive_more",
+ "futures",
+ "futures-util",
+ "getrandom 0.4.3",
+ "gloo-net",
+ "gloo-timers 0.4.0",
+ "jsonwebtoken",
+ "postcard",
+ "regex",
+ "serde",
+ "tokio",
+ "tokio-tungstenite",
+ "uuid",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "inventory"
 version = "0.3.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -22,8 +22,6 @@ infrastructure = [
     "gloo-timers",
     "wasm-bindgen-futures",
 ]
-client = []
-server = []
 
 [dependencies]
 serde = { workspace = true }

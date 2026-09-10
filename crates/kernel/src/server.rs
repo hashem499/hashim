@@ -25,28 +25,26 @@ pub mod domain_errors {
 pub trait DBTransaction {
     fn commit_transaction(
         self,
-    ) -> impl Future<Output = Result<Result<(), domain_errors::AtCommit>, DynamicError>>;
-    fn rollback_transaction(self) -> impl Future<Output = Result<(), DynamicError>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Result<(), domain_errors::AtCommit>, DynamicError>>>>;
+    fn rollback_transaction(self) -> Pin<Box<dyn Future<Output = Result<(), DynamicError>>>>;
 }
 
 pub trait DBClient {
-    type Txn<'a>: DBTransaction
-    where
-        Self: 'a;
-
-    fn begin_transaction(&mut self) -> impl Future<Output = Result<Self::Txn<'_>, DynamicError>>;
+    fn begin_transaction(
+        &mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn DBTransaction>, DynamicError>>>>;
 
     fn write_nonce_if_not_used_and_return_is_nonce_used(
         &mut self,
         nonce: &NonceUuid,
-    ) -> impl Future<Output = Result<bool, DynamicError>>;
+    ) -> Pin<Box<dyn Future<Output = Result<bool, DynamicError>>>>;
 
     // here we just do read we dont do here any set or check
 
     fn read_roles_for_user(
         &mut self,
         users_uuids: &HashSet<UserUuid>,
-    ) -> impl Future<Output = Result<TheCompaniesAndBranchesHeIn, DynamicError>>;
+    ) -> Pin<Box<dyn Future<Output = Result<TheCompaniesAndBranchesHeIn, DynamicError>>>>;
 }
 
 pub(crate) type ListOfResources = HashMap<BranchUuid, Vec<TypeResourceDTO>>;
@@ -71,5 +69,7 @@ pub trait ServerOperationsInput {
     fn handle_operation(
         self: Box<Self>,
         side_effects: &mut SideEffects,
+        client: &mut dyn DBClient,
+        // jwt: &Jwt,
     ) -> Pin<Box<dyn Future<Output = Result<Box<dyn OperationsResult>, DynamicError>>>>;
 }

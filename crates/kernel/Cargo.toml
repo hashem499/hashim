@@ -7,8 +7,6 @@ edition = "2024"
 infrastructure = []
 ui = []
 cache = []
-client = []
-server = []
 database = []
 
 [dependencies]
