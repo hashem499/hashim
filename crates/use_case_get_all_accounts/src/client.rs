@@ -1,5 +1,4 @@
 use crate::domain::Input;
-use crate::domain::MyResult;
 use infrastructure::random_number::RandomNumber;
 use infrastructure::random_number::Rn;
 use kernel::new_types::CompanyUuid;

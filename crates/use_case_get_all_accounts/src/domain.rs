@@ -4,51 +4,14 @@ use infrastructure::row_id::RowId;
 use kernel::new_types::AccountUuid;
 use kernel::new_types::CompanyUuid;
 use kernel::new_types::UserUuid;
-use kernel::request_response::OperationsInput;
-use kernel::request_response::OperationsOk;
-use kernel::request_response::OperationsResult;
 use kernel::types::DatabaseRead;
 use kernel::types::MarkerMyErrorTrait;
 use kernel::types::RowIdError;
 use kernel::types::UserUuidError;
 use serde::Deserialize;
 use serde::Serialize;
-use std::any::Any;
-use std::ops::Deref;
-use typetag::serde;
 
-// #[serde]
-// impl OperationsInput for Input {}
-#[serde]
-impl OperationsOk for Ok {}
-
-#[serde]
-impl OperationsResult for MyResult {
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
-        self
-    }
-
-    fn is_ok(&self) -> bool {
-        self.0.is_ok()
-    }
-}
-
-impl From<Result<Ok, Error>> for MyResult {
-    fn from(value: Result<Ok, Error>) -> Self {
-        Self(value)
-    }
-}
-
-impl Deref for MyResult {
-    type Target = Result<Ok, Error>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct MyResult(Result<Ok, Error>);
+pub type MyResult = Result<Ok, Error>;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Input {
