@@ -3,17 +3,13 @@ use infrastructure::random_number::RandomNumber;
 use infrastructure::random_number::Rn;
 use kernel::new_types::CompanyUuid;
 use kernel::new_types::UserUuid;
-use kernel::request_response::TypeOperationsInput;
-use kernel::request_response::TypeOperationsResult;
 use utility::cache::CacheStruct;
 use utility::cache::CachingStrategy;
-use utility::ui_orchestration::Subscribe;
+use utility::cache::OpInputTrait;
 
-pub async fn fetch(
-    selected_company: CompanyUuid,
-    user_uuid: UserUuid,
-    mut cache: CacheStruct<Subscribe, TypeOperationsInput, TypeOperationsResult>,
-) {
+impl OpInputTrait for Input {}
+
+pub async fn fetch(selected_company: CompanyUuid, user_uuid: UserUuid, mut cache: CacheStruct) {
     let input = Input {
         user_uuid,
         company_uuid: selected_company,

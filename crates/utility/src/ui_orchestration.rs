@@ -1,6 +1,9 @@
 use crate::cache::CacheStruct;
 use crate::cache::CachingStrategy;
+use crate::cache::OpInput;
+use crate::cache::OpResult;
 use crate::cache::Response;
+use crate::cache::Subscribe;
 use crate::process_manager::Dialog;
 use crate::process_manager::MessageFromProcess;
 use crate::process_manager::MessageToProcess;
@@ -17,16 +20,13 @@ use infrastructure::runtime::JoinHandle;
 use infrastructure::runtime::Rt;
 use infrastructure::runtime::Runtime;
 
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
-pub struct Subscribe(pub &'static str);
-
-pub async fn handle_fall_back<Di: Dialog, OperationsInput: Clone, OperationsResult>(
-    mut cache: CacheStruct<Subscribe, OperationsInput, OperationsResult>,
+pub async fn handle_fall_back<Di: Dialog>(
+    mut cache: CacheStruct,
     mut sender_to_process_manager: MpscSender<MessageToProcessManager<Di>>,
     dialog: Di,
     process_id: ProcessId,
-    data: OperationsInput,
-    f: impl Fn(OperationsResult) -> bool + Clone + 'static,
+    data: OpInput,
+    f: impl Fn(OpResult) -> bool + Clone + 'static,
 ) {
     let txn_number = Rn::generate();
 
@@ -93,11 +93,11 @@ pub async fn handle_fall_back<Di: Dialog, OperationsInput: Clone, OperationsResu
     handle.abort().await;
 }
 
-pub fn spawn_listener<OperationsInput: Clone, OperationsResult>(
-    mut cache: CacheStruct<Subscribe, OperationsInput, OperationsResult>,
+pub fn spawn_listener(
+    mut cache: CacheStruct,
     list_of_subscribtion: &'static [Subscribe],
-    data: OperationsInput,
-    is_error: impl Fn(OperationsResult) + 'static,
+    data: OpInput,
+    is_error: impl Fn(OpResult) + 'static,
 ) -> impl FnOnce() {
     let component_id = Rn::generate() as u16;
     let mut cache1 = cache.clone();

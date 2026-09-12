@@ -1,3 +1,4 @@
+use dyn_clone::DynClone;
 use infrastructure::actors::Mpsc;
 use infrastructure::actors::MpscReceiver;
 use infrastructure::actors::MpscSender;
@@ -11,7 +12,35 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::Debug;
 use std::hash::Hash;
+
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
+pub struct Subscribe(u32);
+
+pub trait OpInputTrait: Debug + DynClone {}
+pub trait OpResultTrait: Debug + DynClone {}
+
+pub type OpInput = Box<dyn OpInputTrait>;
+pub type OpResult = Box<dyn OpResultTrait>;
+
+impl Clone for OpInput {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
+
+impl<T: OpInputTrait + 'static> From<T> for OpInput {
+    fn from(value: T) -> Self {
+        Box::new(value)
+    }
+}
+
+impl Clone for OpResult {
+    fn clone(&self) -> Self {
+        dyn_clone::clone_box(&**self)
+    }
+}
 
 pub enum MessageFromServer<E, Resp, Reso> {
     Error(E),
@@ -20,7 +49,7 @@ pub enum MessageFromServer<E, Resp, Reso> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Response<OpResult: 'static> {
+pub enum Response {
     CloseTheChannel,
     ServerCannotBeReached,
     Data {
@@ -29,8 +58,7 @@ pub enum Response<OpResult: 'static> {
     },
 }
 
-pub enum MessageToCache<Subscribe: 'static + Hash + Eq + Clone, OpInput: 'static, OpResult: 'static>
-{
+pub enum MessageToCache {
     WeAreBackOnline,
     DataFromServer(Vec<u8>),
     Subscribe {
@@ -43,20 +71,16 @@ pub enum MessageToCache<Subscribe: 'static + Hash + Eq + Clone, OpInput: 'static
     },
     Query {
         strategy:   CachingStrategy,
-        sender:     MpscSender<Response<OpResult>>,
+        sender:     MpscSender<Response>,
         txn_number: u64,
         data:       OpInput,
     },
 }
 
 pub trait CacheActorUtils {
-    type Subscribe: 'static + Hash + Eq + Clone;
-    type OpInput;
-    type OpResult;
-
     fn cache_receiver(
-        receiver: &mut MpscReceiver<MessageToCache<Self::Subscribe, Self::OpInput, Self::OpResult>>,
-    ) -> impl Future<Output = MessageToCache<Self::Subscribe, Self::OpInput, Self::OpResult>>;
+        receiver: &mut MpscReceiver<MessageToCache>,
+    ) -> impl Future<Output = MessageToCache>;
 
     type NetworkSender;
     fn send_to_network(sender: &mut Self::NetworkSender, data: Vec<u8>)
@@ -72,14 +96,14 @@ pub trait CacheActorUtils {
     type Cache;
     fn new_cache() -> impl Future<Output = Self::Cache>;
 
-    fn get_all_pending_txn(cache: &Self::Cache) -> impl Future<Output = Vec<(u64, Self::OpInput)>>;
+    fn get_all_pending_txn(cache: &Self::Cache) -> impl Future<Output = Vec<(u64, OpInput)>>;
     fn clear_state_pending_txn(cache: &mut Self::Cache) -> impl Future<Output = ()>;
     fn start_state_pending_txn(cache: &mut Self::Cache) -> impl Future<Output = ()>;
 
     type SendingTxns: Serialize;
     fn prepare_txn_for_send(
         cache: &Self::Cache,
-        txns: Vec<(u64, Self::OpInput)>,
+        txns: Vec<(u64, OpInput)>,
     ) -> impl Future<Output = Self::SendingTxns>;
 
     type ErrorFromServer;
@@ -97,7 +121,7 @@ pub trait CacheActorUtils {
     ) -> Vec<Self::ResourceToStore>;
 
     fn extract_resource_from_response(resp: &Self::Response) -> Vec<Self::ResourceToStore>;
-    fn extract_resource_from_result(data: &Self::OpResult) -> Option<Self::ResourceToStore>;
+    fn extract_resource_from_result(data: &OpResult) -> Option<Self::ResourceToStore>;
 
     fn write_resource_to_cache_from_server(
         cache: &mut Self::Cache,
@@ -122,22 +146,19 @@ pub trait CacheActorUtils {
     ) -> impl Future<Output = ()>;
     fn get_all_response_txn_numbers(
         resp: &Self::Response,
-    ) -> impl Future<Output = Vec<(u64, Self::OpResult)>>;
-    fn check_input(
-        cache: &mut Self::Cache,
-        data: &Self::OpInput,
-    ) -> impl Future<Output = Self::OpResult>;
+    ) -> impl Future<Output = Vec<(u64, OpResult)>>;
+    fn check_input(cache: &mut Self::Cache, data: &OpInput) -> impl Future<Output = OpResult>;
     fn write_input(
         cache: &Self::Cache,
         txn_number: u64,
-        data: &Self::OpInput,
+        data: &OpInput,
     ) -> impl Future<Output = ()>;
 
-    fn create_pending_txn(txn_number: u64, data: Self::OpInput) -> (u64, Self::OpInput) {
+    fn create_pending_txn(txn_number: u64, data: OpInput) -> (u64, OpInput) {
         (txn_number, data)
     }
     fn collect_subs_to_poke(
-        subs_to_poke: &mut HashSet<Self::Subscribe>,
+        subs_to_poke: &mut HashSet<Subscribe>,
         resource: &Self::ResourceToStore,
     );
 }
@@ -156,19 +177,11 @@ pub enum CachingStrategy {
     WriteServerOnly,
 }
 
-pub struct CacheStruct<Subscribe, OpInput, OpResult>
-where
-    Subscribe: 'static + Hash + Eq + Clone,
-    OpInput: 'static,
-    OpResult: 'static,
-{
-    sender: MpscSender<MessageToCache<Subscribe, OpInput, OpResult>>,
+pub struct CacheStruct {
+    sender: MpscSender<MessageToCache>,
 }
 
-impl<Subscribe, OpInput, OpResult> Clone for CacheStruct<Subscribe, OpInput, OpResult>
-where
-    Subscribe: 'static + Hash + Eq + Clone,
-{
+impl Clone for CacheStruct {
     fn clone(&self) -> Self {
         Self {
             sender: self.sender.clone(),
@@ -176,13 +189,10 @@ where
     }
 }
 
-impl<Subscribe, OpInput, OpResult> CacheStruct<Subscribe, OpInput, OpResult>
-where
-    Subscribe: 'static + Hash + Eq + Clone,
-{
-    pub fn new<Cu: CacheActorUtils<OpResult = OpResult, Subscribe = Subscribe> + 'static>(
-        receiver_to_cache: MpscReceiver<MessageToCache<Cu::Subscribe, Cu::OpInput, Cu::OpResult>>,
-        sender_to_cache: MpscSender<MessageToCache<Subscribe, OpInput, OpResult>>,
+impl CacheStruct {
+    pub fn new<Cu: CacheActorUtils + 'static>(
+        receiver_to_cache: MpscReceiver<MessageToCache>,
+        sender_to_cache: MpscSender<MessageToCache>,
         sender_to_network: Cu::NetworkSender,
         sender_to_error: Cu::ErrorSender,
         is_online: Cu::NetworkStatus,
@@ -199,7 +209,7 @@ where
         strategy: CachingStrategy,
         txn_number: u64,
         data: OpInput,
-    ) -> MpscReceiver<Response<OpResult>> {
+    ) -> MpscReceiver<Response> {
         let (sender, receiver) = Mpsc::channel();
 
         self.sender
@@ -243,17 +253,14 @@ where
             .unwrap();
     }
 
-    fn cache_actor<Cu: CacheActorUtils<OpResult = OpResult, Subscribe = Subscribe> + 'static>(
-        mut receiver_to_cache: MpscReceiver<
-            MessageToCache<Cu::Subscribe, Cu::OpInput, Cu::OpResult>,
-        >,
+    fn cache_actor<Cu: CacheActorUtils + 'static>(
+        mut receiver_to_cache: MpscReceiver<MessageToCache>,
         mut sender_to_network: Cu::NetworkSender,
         mut sender_to_error: Cu::ErrorSender,
         is_online: Cu::NetworkStatus,
     ) {
         Rt::spawn_local(async move {
-            let mut pool_of_senders =
-                HashMap::<u64, MpscSender<Response<OpResult>>>::with_capacity(100);
+            let mut pool_of_senders = HashMap::<u64, MpscSender<Response>>::with_capacity(100);
             let mut pool_of_pokers = HashMap::<u16, MpscSender<()>>::with_capacity(10);
             let mut pool_of_subscribes = HashMap::<Subscribe, HashSet<u16>>::with_capacity(100);
 
