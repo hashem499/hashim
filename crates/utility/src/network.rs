@@ -1,6 +1,6 @@
 use anyhow::Error;
 use anyhow::Result;
-use anyhow::anyhow;
+use anyhow::bail;
 use infrastructure::runtime::Either;
 use infrastructure::runtime::Rt;
 use infrastructure::runtime::Runtime;
@@ -19,7 +19,7 @@ pub trait Network {
 async fn network_radar(ws: Option<&mut Ws>) -> Result<Vec<u8>> {
     match ws {
         Some(ws) => ws.receive_bin().await,
-        None => Err(anyhow!("error")),
+        None => bail!("error"),
     }
 }
 

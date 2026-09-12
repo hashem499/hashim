@@ -1,7 +1,7 @@
 use crate::new_types::BranchUuid;
 use crate::new_types::CompanyUuid;
 use anyhow::Result;
-use anyhow::anyhow;
+use anyhow::bail;
 use serde::Deserialize;
 use serde::Serialize;
 use std::error::Error;
@@ -87,7 +87,7 @@ impl FromStr for Currency {
         match s {
             "USD" => Ok(Currency::USD),
             "IQD" => Ok(Currency::IQD),
-            _ => Err(anyhow!("not exist")),
+            _ => bail!("not exist"),
         }
     }
 }
@@ -115,7 +115,7 @@ impl FromStr for Role {
         match s {
             "Manager" => Ok(Role::Manager),
             "CoManager" => Ok(Role::CoManager),
-            _ => Err(anyhow!("not exist")),
+            _ => bail!("not exist"),
         }
     }
 }

@@ -16,6 +16,7 @@ accounting_engine = { path = "./crates/accounting_engine" }
 database = { path = "./crates/database" }
 infrastructure = { path = "./crates/infrastructure" }
 kernel = { path = "./crates/kernel" }
+server = { path = "./crates/server" }
 use_case_get_all_accounts = { path = "./crates/use_case_get_all_accounts" }
 utility = { path = "./crates/utility" }
 utility_ui = { path = "./crates/utility_ui" }

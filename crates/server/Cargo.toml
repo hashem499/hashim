@@ -1,0 +1,19 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+database = { workspace = true }
+infrastructure = { workspace = true }
+kernel = { workspace = true }
+utility = { workspace = true }
+
+anyhow = { workspace = true }
+
+actix-cors = { workspace = true }
+actix-web = { workspace = true }
+actix-ws = { workspace = true }
+futures-util = { workspace = true }
+rustls = { workspace = true }
+rustls-pemfile = { workspace = true }

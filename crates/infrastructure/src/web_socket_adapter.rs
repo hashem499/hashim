@@ -12,7 +12,7 @@ pub type Ws = target::S;
 pub mod target {
     use super::WSClient;
     use anyhow::Result;
-    use anyhow::anyhow;
+    use anyhow::bail;
     use futures::SinkExt;
     use futures::StreamExt;
     use futures::stream::SplitSink;
@@ -49,14 +49,14 @@ pub mod target {
             match self.read.next().await {
                 Some(Ok(message)) => {
                     match message {
-                        Message::Text(_) => Err(anyhow!("it's text")),
+                        Message::Text(_) => bail!("it's text"),
                         Message::Binary(bytes) => Ok(bytes.to_vec()),
-                        Message::Close(_) => Err(anyhow!("connection closed")),
-                        _ => Err(anyhow!("other message type")),
+                        Message::Close(_) => bail!("connection closed"),
+                        _ => bail!("other message type"),
                     }
                 }
                 Some(Err(e)) => Err(e.into()),
-                None => Err(anyhow!("connection closed")),
+                None => bail!("connection closed"),
             }
         }
     }
@@ -101,12 +101,12 @@ pub mod target {
             match self.read.next().await {
                 Some(Ok(message)) => {
                     match message {
-                        Message::Text(_) => Err(anyhow!("it's text")),
+                        Message::Text(_) => bail!("it's text"),
                         Message::Bytes(bytes) => Ok(bytes.to_vec()),
                     }
                 }
                 Some(Err(e)) => Err(e.into()),
-                None => Err(anyhow!("connection closed")),
+                None => bail!("connection closed"),
             }
         }
     }

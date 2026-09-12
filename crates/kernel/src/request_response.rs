@@ -84,7 +84,7 @@ impl<T: OperationsResult + 'static> From<T> for TypeOperationsResult {
 
 //////////////////////////////////////////////////////////////////////
 #[serde]
-pub trait ResourceDTO: Debug + DynClone {}
+pub trait ResourceDTO: Debug + DynClone + Send {}
 pub type TypeResourceDTO = Box<dyn ResourceDTO>;
 
 impl Clone for TypeResourceDTO {
