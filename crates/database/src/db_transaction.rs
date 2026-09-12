@@ -13,16 +13,16 @@ pub struct S<'a> {
 impl DBTransaction for S<'_> {
     fn commit_transaction<'a>(
         self: Box<Self>,
-    ) -> Pin<Box<dyn Future<Output = Result<Result<(), AtCommit>>> + 'a>>
+    ) -> Pin<Box<dyn Future<Output = Result<Option<AtCommit>>> + 'a>>
     where
         Self: 'a,
     {
         Box::pin(async move {
             match self.txn.commit().await {
-                Ok(_) => Ok(Ok(())),
+                Ok(_) => Ok(None),
                 Err(e) => {
                     if get_sql_state(&e) == SqlState::T_R_SERIALIZATION_FAILURE {
-                        return Ok(Err(AtCommit::DataIsChanged));
+                        return Ok(Some(AtCommit::DataIsChanged));
                     }
                     Err(e.into())
                 }

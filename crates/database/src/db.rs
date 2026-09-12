@@ -3,7 +3,7 @@ use anyhow::Result;
 use deadpool_postgres::Config;
 use deadpool_postgres::Pool;
 use deadpool_postgres::Runtime;
-use kernel::server_methods::Database;
+use kernel::server::Database;
 use tokio_postgres::NoTls;
 use utility::types::LogError;
 

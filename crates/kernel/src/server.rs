@@ -23,7 +23,7 @@ pub enum AtCommit {
 pub trait DBTransaction {
     fn commit_transaction<'a>(
         self: Box<Self>,
-    ) -> Pin<Box<dyn Future<Output = Result<Result<(), AtCommit>>> + 'a>>
+    ) -> Pin<Box<dyn Future<Output = Result<Option<AtCommit>>> + 'a>>
     where
         Self: 'a;
     fn rollback_transaction<'a>(self: Box<Self>) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>>
@@ -75,4 +75,21 @@ pub trait ServerOperationsInput {
         side_effects: &'a mut SideEffects,
         client: &'a mut dyn DBClient,
     ) -> Pin<Box<dyn Future<Output = Result<Box<dyn OperationsResult>>> + 'a>>;
+}
+
+pub trait Database: 'static {
+    type Client: DBClient;
+    fn new() -> impl Future<Output = Self>;
+    fn get_client(&self) -> impl Future<Output = Result<Self::Client>>;
+}
+
+pub enum WSMessage {
+    Binary(Vec<u8>),
+    Close,
+}
+
+pub trait WSServer: 'static {
+    fn send_bin(&mut self, bin: Vec<u8>) -> impl Future<Output = Result<()>>;
+    fn receive(&mut self) -> impl Future<Output = Result<WSMessage>>;
+    fn close(self) -> impl Future<Output = Result<()>>;
 }

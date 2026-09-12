@@ -68,13 +68,12 @@ pub trait OperationsResult: Debug {
     fn into_any(self: Box<Self>) -> Box<dyn Any>;
     fn is_ok(&self) -> bool;
 }
+pub type TypeOperationsResult = Box<dyn OperationsResult>;
 
 pub fn downcast_trait<T: Any>(obj: Box<dyn OperationsResult>) -> T {
     let any = obj.into_any();
     *any.downcast::<T>().unwrap()
 }
-
-pub type TypeOperationsResult = Box<dyn OperationsResult>;
 
 impl<T: OperationsResult + 'static> From<T> for TypeOperationsResult {
     fn from(input: T) -> Self {

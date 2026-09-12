@@ -6,8 +6,11 @@ use crate::request_response::MyResult;
 use crate::request_response::Txn;
 use crate::request_response::TypeResourceDTO;
 use crate::server::DBClient;
+use crate::server::Database;
 use crate::server::ListOfResources;
 use crate::server::SideEffects;
+use crate::server::WSMessage;
+use crate::server::WSServer;
 use crate::types::HashimError;
 use crate::types::JWTError;
 use crate::types::NonceError;
@@ -36,27 +39,10 @@ use std::time::UNIX_EPOCH;
 use utility::types::HashMapWithHashMapValue;
 use utility::types::LogError;
 
-pub trait Database: 'static {
-    type Client: DBClient;
-    fn new() -> impl Future<Output = Self>;
-    fn get_client(&self) -> impl Future<Output = Result<Self::Client>>;
-}
-
-pub enum WSMessage {
-    Binary(Vec<u8>),
-    Close,
-}
-
-pub trait WSServer: 'static {
-    fn send_bin(&mut self, bin: Vec<u8>) -> impl Future<Output = Result<()>>;
-    fn receive(&mut self) -> impl Future<Output = Result<WSMessage>>;
-    fn close(self) -> impl Future<Output = Result<()>>;
-}
-
 pub struct ServerMethods<Jwt: JWT, Db: Database> {
-    database:                    Db,
-    jwt:                         Jwt,
-    pub(crate) sender_to_broker: MpscSender<MessageToBroker>,
+    database:         Db,
+    jwt:              Jwt,
+    sender_to_broker: MpscSender<MessageToBroker>,
 }
 
 impl<Jwt: JWT, Db: Database<Client = Cli>, Cli: DBClient> ServerMethods<Jwt, Db> {

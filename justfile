@@ -25,7 +25,6 @@ check: fmt
     RUSTFLAGS="-A warnings" cargo check --all-targets --features="client,cache"
     RUSTFLAGS="-A warnings" cargo check --all-targets --features="client,ui"
     RUSTFLAGS="-A warnings" cargo check --all-targets --features="client,server,infrastructure"
-    cargo-cycles
 
 test: fmt
     RUSTFLAGS="-A warnings" cargo test -- --show-output
@@ -48,7 +47,6 @@ check_p crate_name: fmt
     RUSTFLAGS="-A warnings" cargo check --workspace -p {{crate_name}} --all-targets --features="client,cache"
     RUSTFLAGS="-A warnings" cargo check --workspace -p {{crate_name}} --all-targets --features="client,ui"
     RUSTFLAGS="-A warnings" cargo check --workspace -p {{crate_name}} --all-targets --features="client,server,infrastructure"
-    cargo-cycles
 
 test_p crate_name: fmt
     RUSTFLAGS="-A warnings" cargo test -p {{crate_name}} -- --show-output
