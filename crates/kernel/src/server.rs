@@ -75,23 +75,3 @@ pub trait ServerOperationsInput {
         client: &'a mut dyn DBClient,
     ) -> Pin<Box<dyn Future<Output = Result<Box<dyn OperationsResult>>> + 'a>>;
 }
-
-// pub trait GenericServerOperationsInput {
-//     type Result;
-//     type ReadInput;
-//     type ReadOutput;
-//     type Db: ?Sized;
-//     type OIIJoj: ?Sized;
-
-//     fn handle_operation_generic<
-//         DBReader: for<'a> DatabaseRead<
-//                 Db<'a> = Self::OIIJoj,
-//                 Input = Self::ReadInput,
-//                 Output = Self::ReadOutput,
-//             >,
-//     >(
-//         &self,
-//         side_effects: &mut SideEffects,
-//         client: &mut Self::Db,
-//     ) -> impl Future<Output = Result<Self::Result>>;
-// }

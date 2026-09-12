@@ -8,6 +8,8 @@ infrastructure = []
 ui = []
 cache = []
 database = []
+client = []
+server = []
 
 [dependencies]
 infrastructure = { workspace = true }
