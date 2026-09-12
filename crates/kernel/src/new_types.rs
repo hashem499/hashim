@@ -21,6 +21,11 @@ macro_rules! make_type {
                 Self(value)
             }
         }
+        impl $new_type {
+            pub fn into_inner(self) -> $inner_type {
+                self.0
+            }
+        }
     };
 }
 

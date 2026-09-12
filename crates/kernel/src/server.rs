@@ -16,38 +16,39 @@ pub struct TheCompaniesAndBranchesHeIn {
     pub branches:                 HashMap<UserUuid, HashSet<BranchUuid>>,
 }
 
-pub mod domain_errors {
-    #[derive(Debug)]
-    pub enum AtCommit {
-        DataIsChanged,
-    }
+pub enum AtCommit {
+    DataIsChanged,
 }
 
 pub trait DBTransaction {
-    fn commit_transaction(
+    fn commit_transaction<'a>(
         self: Box<Self>,
-    ) -> Pin<Box<dyn Future<Output = Result<Result<(), domain_errors::AtCommit>>>>>;
-    fn rollback_transaction(self: Box<Self>) -> Pin<Box<dyn Future<Output = Result<()>>>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Result<(), AtCommit>>> + 'a>>
+    where
+        Self: 'a;
+    fn rollback_transaction<'a>(self: Box<Self>) -> Pin<Box<dyn Future<Output = Result<()>> + 'a>>
+    where
+        Self: 'a;
 }
 
 pub trait DBClient {
     fn as_any(&mut self) -> &mut dyn Any;
 
-    fn begin_transaction(
-        &mut self,
-    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn DBTransaction>>>>>;
+    fn begin_transaction<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<Box<dyn DBTransaction + 'a>>> + 'a>>;
 
-    fn write_nonce_if_not_used_and_return_is_nonce_used(
-        &mut self,
-        nonce: &NonceUuid,
-    ) -> Pin<Box<dyn Future<Output = Result<bool>>>>;
+    fn write_nonce_if_not_used_and_return_is_nonce_used<'a>(
+        &'a mut self,
+        nonce: &'a NonceUuid,
+    ) -> Pin<Box<dyn Future<Output = Result<bool>> + 'a>>;
 
     // here we just do read we dont do here any set or check
 
-    fn read_roles_for_user(
-        &mut self,
-        users_uuids: &HashSet<UserUuid>,
-    ) -> Pin<Box<dyn Future<Output = Result<TheCompaniesAndBranchesHeIn>>>>;
+    fn read_roles_for_user<'a>(
+        &'a mut self,
+        users_uuids: &'a HashSet<UserUuid>,
+    ) -> Pin<Box<dyn Future<Output = Result<TheCompaniesAndBranchesHeIn>> + 'a>>;
 }
 
 pub(crate) type ListOfResources = HashMap<BranchUuid, Vec<TypeResourceDTO>>;
