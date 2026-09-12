@@ -1,3 +1,6 @@
+use anyhow::Result;
+use infrastructure::row_id::Id;
+use infrastructure::row_id::RowId;
 use kernel::new_types::AccountUuid;
 use kernel::new_types::CompanyUuid;
 use kernel::new_types::UserUuid;
@@ -15,8 +18,6 @@ use serde::Serialize;
 use std::any::Any;
 use std::ops::Deref;
 use typetag::serde;
-use utility::row_id::RowId;
-use utility::types::DynamicError;
 
 #[serde]
 impl OperationsInput for Input {}
@@ -109,7 +110,7 @@ pub struct ReadOutput {
 pub trait DatabaseRead: types::DatabaseRead<Input = ReadInput, Output = ReadOutput> {}
 
 impl Input {
-    pub(crate) fn state_less_check<Id: RowId>(&self) -> Error {
+    pub(crate) fn state_less_check(&self) -> Error {
         let mut errr = Error::default();
 
         if !Id::validate(&self.new_uuid) {
@@ -126,17 +127,15 @@ impl Input {
         errr
     }
 
-    pub(crate) async fn state_full_check<Db: DatabaseRead>(
-        &self,
-        db: &mut Db::Db<'_>,
-    ) -> Result<Error, DynamicError> {
-        let read_output = Db::read(db, &ReadInput {
-            user_uuid:         self.user_uuid.clone(),
-            new_uuid:          self.new_uuid.clone(),
-            belong_to_company: self.belong_to_company.clone(),
-            account_name:      self.account_name.clone(),
-        })
-        .await?;
+    pub(crate) async fn state_full_check(&self, reader: &dyn DatabaseRead) -> Result<Error> {
+        let read_output = reader
+            .read(&ReadInput {
+                user_uuid:         self.user_uuid.clone(),
+                new_uuid:          self.new_uuid.clone(),
+                belong_to_company: self.belong_to_company.clone(),
+                account_name:      self.account_name.clone(),
+            })
+            .await?;
 
         let mut errr = Error::default();
 

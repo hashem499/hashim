@@ -1,5 +1,6 @@
 use crate::new_types::BranchUuid;
 use crate::new_types::CompanyUuid;
+use anyhow::Result;
 use anyhow::anyhow;
 use serde::Deserialize;
 use serde::Serialize;
@@ -7,20 +8,18 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::pin::Pin;
 use std::str::FromStr;
 use utility::types::DynamicError;
 
-pub trait DatabaseRead: Sync + Send {
-    type Db;
+pub trait DatabaseRead {
+    type Db<'a>;
     type Input;
     type Output;
 
     fn read(
-        &self,
-        db: &mut Self::Db,
+        db: &mut Self::Db<'_>,
         input: &Self::Input,
-    ) -> Pin<Box<dyn Future<Output = Result<Self::Output, DynamicError>>>>;
+    ) -> impl Future<Output = Result<Self::Output, DynamicError>>;
 }
 
 pub trait DatabaseWrite {

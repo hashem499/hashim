@@ -2898,6 +2898,8 @@ dependencies = [
 name = "use_case_create_account"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "infrastructure",
  "kernel",
  "serde",
  "typetag",
