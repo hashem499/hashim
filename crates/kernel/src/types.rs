@@ -9,7 +9,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use utility::types::DynamicError;
 
 pub trait DatabaseRead {
     type Db<'a>;
@@ -19,17 +18,14 @@ pub trait DatabaseRead {
     fn read(
         db: &mut Self::Db<'_>,
         input: &Self::Input,
-    ) -> impl Future<Output = Result<Self::Output, DynamicError>>;
+    ) -> impl Future<Output = Result<Self::Output>>;
 }
 
 pub trait DatabaseWrite {
     type Db<'a>;
     type Input;
 
-    fn write(
-        txn: &mut Self::Db<'_>,
-        input: &Self::Input,
-    ) -> impl Future<Output = Result<(), DynamicError>>;
+    fn write(txn: &mut Self::Db<'_>, input: &Self::Input) -> impl Future<Output = Result<()>>;
 }
 
 pub trait MyErrorTrait {
@@ -85,7 +81,7 @@ pub enum Currency {
 }
 
 impl FromStr for Currency {
-    type Err = DynamicError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -113,7 +109,7 @@ pub enum Role {
 }
 
 impl FromStr for Role {
-    type Err = DynamicError;
+    type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {

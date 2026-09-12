@@ -5,8 +5,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::RwLock;
 
-pub type DynamicError = anyhow::Error;
-
 pub trait LogError {
     #[must_use = "this `Result` may be an `Err` variant, which should be handled"]
     fn log(self) -> Self;
@@ -88,20 +86,4 @@ impl MakeOptionIfEmpty for String {
         }
         Some(self)
     }
-}
-
-#[macro_export]
-macro_rules! mbg {
-    () => {
-        #[cfg(not(target_arch = "wasm32"))]
-        dbg!();
-        #[cfg(target_arch = "wasm32")]
-        dioxus_logger::tracing::info!("");
-    };
-    ($($val:expr),+ $(,)?) => {
-        #[cfg(not(target_arch = "wasm32"))]
-        ($(dbg!($val)),+,);
-        #[cfg(target_arch = "wasm32")]
-        ($(dioxus_logger::tracing::info!("{:?}", $val)),+,);
-    };
 }

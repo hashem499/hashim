@@ -11,6 +11,7 @@ use crate::server::SideEffects;
 use crate::types::HashimError;
 use crate::types::JWTError;
 use crate::types::NonceError;
+use anyhow::Result;
 use infrastructure::actors::Mpsc;
 use infrastructure::actors::MpscReceiver;
 use infrastructure::actors::MpscSender;
@@ -32,14 +33,13 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use utility::types::DynamicError;
 use utility::types::HashMapWithHashMapValue;
 use utility::types::LogError;
 
 pub trait Database: 'static {
     type Client: DBClient;
     fn new() -> impl Future<Output = Self>;
-    fn get_client(&self) -> impl Future<Output = Result<Self::Client, DynamicError>>;
+    fn get_client(&self) -> impl Future<Output = Result<Self::Client>>;
 }
 
 pub enum WSMessage {
@@ -48,9 +48,9 @@ pub enum WSMessage {
 }
 
 pub trait WSServer: 'static {
-    fn send_bin(&mut self, bin: Vec<u8>) -> impl Future<Output = Result<(), DynamicError>>;
-    fn receive(&mut self) -> impl Future<Output = Result<WSMessage, DynamicError>>;
-    fn close(self) -> impl Future<Output = Result<(), DynamicError>>;
+    fn send_bin(&mut self, bin: Vec<u8>) -> impl Future<Output = Result<()>>;
+    fn receive(&mut self) -> impl Future<Output = Result<WSMessage>>;
+    fn close(self) -> impl Future<Output = Result<()>>;
 }
 
 pub struct ServerMethods<Jwt: JWT, Db: Database> {
@@ -314,7 +314,7 @@ async fn push_data<Jwt: JWT, Cli: DBClient>(
     side_effects: &mut SideEffects,
     client: &mut Cli,
     jwt: &Jwt,
-) -> Result<MyResult, DynamicError> {
+) -> Result<MyResult> {
     let mut the_return_result = MyResult {
         jwts:       Vec::with_capacity(input.jwts.len()),
         nonce:      Ok(()),
@@ -389,7 +389,7 @@ fn check_nonce_if_valid(nonce: &UuidType, is_used: bool) -> bool {
 async fn get_table_of_subscribed_data<Cli: DBClient>(
     client: &mut Cli,
     users_uuids: &HashSet<UserUuid>,
-) -> Result<AllSubscribes, DynamicError> {
+) -> Result<AllSubscribes> {
     let the_companies_and_branches_he_in = client.read_roles_for_user(users_uuids).await?;
 
     let mut subs = AllSubscribes {
