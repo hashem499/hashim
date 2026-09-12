@@ -1,37 +1,37 @@
-use crate::domain::DatabaseRead;
 use crate::domain::Input;
 use crate::domain::MyResult;
+use crate::domain::ReadInput;
+use crate::domain::ReadOutput;
+use infrastructure::actors::MpscSender;
+use infrastructure::actors::Receiver;
+use infrastructure::actors::Sender;
+use infrastructure::random_number::RandomNumber;
+use infrastructure::random_number::Rn;
+use infrastructure::row_id::Id;
+use infrastructure::row_id::RowId;
 use kernel::client::Cache;
 use kernel::client::DialogSignalAdapter;
 use kernel::new_types::AccountUuid;
 use kernel::new_types::CompanyUuid;
 use kernel::new_types::UserUuid;
 use kernel::new_types::UuidType;
-use kernel::request_response::OperationsResult;
-use kernel::request_response::TypeOperationsInput;
-use kernel::request_response::TypeOperationsResult;
-use kernel::request_response::downcast_trait;
+use kernel::types::DatabaseRead;
 use kernel::types::MyErrorTrait;
-use std::ops::Deref;
 use use_case_get_all_accounts::client::fetch;
-use utility::actors::MultiProducerSingleConsumer;
-use utility::actors::Receiver;
-use utility::actors::Sender;
 use utility::cache::CacheStruct;
 use utility::cache::CachingStrategy;
+use utility::cache::OpInputTrait;
 use utility::cache::Response;
 use utility::process_manager::MessageToProcessManager;
 use utility::process_manager::ProcessId;
 use utility::process_manager::UserConsent;
-use utility::random_number::RandomNumber;
-use utility::row_id::RowId;
-use utility::runtime::Runtime;
 use utility::types::MakeOptionIfEmpty;
 use utility::types::ReadAndSet;
-use utility::ui_orchestration::Subscribe;
 use utility::ui_orchestration::handle_fall_back;
 use utility_ui::domain::Dialog;
 use utility_ui::domain::HashimSignal;
+
+impl OpInputTrait for Input {}
 
 type Type1 = Input;
 type Type2 = Input;
@@ -72,7 +72,7 @@ pub enum CreateAccount {
 
 pub(crate) async fn state_full_operation<
     Ch: Cache,
-    LongCache: for<'a> DatabaseRead<Db<'a> = Ch>,
+    LongCache: for<'a> DatabaseRead<Db<'a> = Ch, Input = ReadInput, Output = ReadOutput>,
 >(
     data: &Type2,
     state: &mut Ch,
@@ -87,7 +87,7 @@ pub(crate) async fn state_full_operation<
 }
 
 fn apply_on_the_model(output: &Type4, local_model: &impl LocalModel) {
-    match output.deref() {
+    match output {
         Ok(_) => {
             local_model.account_name_error().reset();
         }
@@ -100,27 +100,21 @@ fn apply_on_the_model(output: &Type4, local_model: &impl LocalModel) {
 }
 
 impl CreateAccount {
-    pub(crate) async fn update<Rn, Rt, Id, Mpsc, Di, Ch, LongCache, LM>(
+    pub(crate) async fn update<Di, Ch, LongCache, LM>(
         self,
         global_model: &impl GlobalModel,
         local_model: &'static LM,
-        cache: CacheStruct<Mpsc, Subscribe, TypeOperationsInput, TypeOperationsResult>,
-        mut sender_to_process_manager: Mpsc::Sender<
-            MessageToProcessManager<Mpsc, DialogSignalAdapter<Di>>,
-        >,
+        cache: CacheStruct,
+        mut sender_to_process_manager: MpscSender<MessageToProcessManager<DialogSignalAdapter<Di>>>,
     ) where
         LM: LocalModel<Sig<Dialog> = Di>,
-        Rn: RandomNumber,
-        Rt: Runtime,
-        Id: RowId,
-        Mpsc: MultiProducerSingleConsumer,
         Di: HashimSignal<Dialog> + Clone + 'static,
         Ch: Cache,
         LongCache: for<'a> DatabaseRead<Db<'a> = Ch>,
     {
         match self {
             CreateAccount::Submit => {
-                handle_submit::<Rn, Rt, Id, Mpsc, Di, Ch, LongCache, LM>(
+                handle_submit::<Di, Ch, LongCache, LM>(
                     global_model,
                     local_model,
                     cache,
@@ -142,14 +136,14 @@ impl CreateAccount {
             CreateAccount::IsPermanentAccount(v) => local_model.is_permanent_account().set(v),
             CreateAccount::AccountName(v) => {
                 local_model.account_name().set(v);
-                handle_check::<Rn, Id, Mpsc, Ch, LongCache>(global_model, local_model, cache).await;
+                handle_check::<Ch, LongCache>(global_model, local_model, cache).await;
             }
             CreateAccount::Notes(v) => local_model.notes().set(v),
             CreateAccount::UnitOfMeasurementOfQuantity(v) => {
                 local_model.unit_of_measurement_of_quantity().set(v)
             }
             CreateAccount::Subscribe => {
-                fetch::<Rn, Mpsc>(
+                fetch(
                     global_model.selected_company().read(),
                     global_model.user_uuid().read(),
                     cache,
@@ -160,7 +154,7 @@ impl CreateAccount {
     }
 }
 
-fn build_input<Id: RowId>(global_model: &impl GlobalModel, local_model: &impl LocalModel) -> Type1 {
+fn build_input(global_model: &impl GlobalModel, local_model: &impl LocalModel) -> Type1 {
     Input {
         user_uuid:                       global_model.user_uuid().read(),
         new_uuid:                        AccountUuid::from(UuidType::from(Id::generate())),
@@ -184,41 +178,30 @@ fn handle_clean<As: LocalModel>(local_model: &As) {
     local_model.account_name_error().reset();
 }
 
-async fn handle_submit<Rn, Rt, Id, Mpsc, Di, Ch, LongCache, LM>(
+async fn handle_submit<Di, Ch, LongCache, LM>(
     global_model: &impl GlobalModel,
     local_model: &'static LM,
-    cache: CacheStruct<Mpsc, Subscribe, TypeOperationsInput, TypeOperationsResult>,
-    sender_to_process_manager: Mpsc::Sender<MessageToProcessManager<Mpsc, DialogSignalAdapter<Di>>>,
+    cache: CacheStruct,
+    sender_to_process_manager: MpscSender<MessageToProcessManager<DialogSignalAdapter<Di>>>,
 ) where
     LM: LocalModel<Sig<Dialog> = Di>,
-    Rn: RandomNumber,
-    Rt: Runtime,
-    Id: RowId,
-    Mpsc: MultiProducerSingleConsumer,
     Di: HashimSignal<Dialog> + Clone + 'static,
     Ch: Cache,
     LongCache: for<'a> DatabaseRead<Db<'a> = Ch>,
 {
-    let process_id = ProcessId::new::<Rn>();
+    let process_id = ProcessId::new();
     local_model.process_id().put(Some(process_id));
 
     let dialog_signal_adapter = DialogSignalAdapter(local_model.show_dialog());
 
-    handle_fall_back::<
-        Rn,
-        Rt,
-        Mpsc,
-        DialogSignalAdapter<Di>,
-        TypeOperationsInput,
-        TypeOperationsResult,
-    >(
+    handle_fall_back::<DialogSignalAdapter<Di>>(
         cache,
         sender_to_process_manager,
         dialog_signal_adapter,
         process_id,
-        build_input::<Id>(global_model, local_model).into(),
+        build_input(global_model, local_model).into(),
         move |data| {
-            let result = downcast_trait(data);
+            let result = data.downcast();
             apply_on_the_model(&result, local_model);
 
             let is_ok = result.is_ok();
@@ -234,22 +217,16 @@ async fn handle_submit<Rn, Rt, Id, Mpsc, Di, Ch, LongCache, LM>(
     local_model.is_loading().reset();
 }
 
-async fn handle_check<
-    Rn: RandomNumber,
-    Id: RowId,
-    Mpsc: MultiProducerSingleConsumer,
-    Ch: Cache,
-    LongCache: for<'a> DatabaseRead<Db<'a> = Ch>,
->(
+async fn handle_check<Ch: Cache, LongCache: for<'a> DatabaseRead<Db<'a> = Ch>>(
     global_model: &impl GlobalModel,
     local_model: &impl LocalModel,
-    mut cache: CacheStruct<Mpsc, Subscribe, TypeOperationsInput, TypeOperationsResult>,
+    mut cache: CacheStruct,
 ) {
     let mut receiver_to_response = cache
         .send_to_cache_actor(
             CachingStrategy::ReadCacheOnly,
             Rn::generate(),
-            build_input::<Id>(global_model, local_model).into(),
+            build_input(global_model, local_model).into(),
         )
         .await;
 
@@ -260,7 +237,7 @@ async fn handle_check<
             is_response_from_server: _,
             data,
         } => {
-            let result = downcast_trait(data);
+            let result = data.downcast();
             apply_on_the_model(&result, local_model);
         }
     }

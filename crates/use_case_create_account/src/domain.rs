@@ -4,56 +4,15 @@ use infrastructure::row_id::RowId;
 use kernel::new_types::AccountUuid;
 use kernel::new_types::CompanyUuid;
 use kernel::new_types::UserUuid;
-use kernel::request_response::OperationsInput;
-use kernel::request_response::OperationsOk;
-use kernel::request_response::OperationsResult;
-use kernel::request_response::ResourceDTO;
-use kernel::types;
+use kernel::types::DatabaseRead;
 use kernel::types::MarkerMyErrorTrait;
 use kernel::types::Role;
 use kernel::types::RowIdError;
 use kernel::types::UserUuidError;
 use serde::Deserialize;
 use serde::Serialize;
-use std::any::Any;
-use std::ops::Deref;
-use typetag::serde;
 
-#[serde]
-impl OperationsInput for Input {}
-#[serde]
-impl OperationsOk for Ok {}
-
-#[serde]
-impl OperationsResult for MyResult {
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
-        self
-    }
-
-    fn is_ok(&self) -> bool {
-        self.0.is_ok()
-    }
-}
-
-impl From<Result<Ok, Error>> for MyResult {
-    fn from(value: Result<Ok, Error>) -> Self {
-        Self(value)
-    }
-}
-
-impl Deref for MyResult {
-    type Target = Result<Ok, Error>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[serde]
-impl ResourceDTO for Ok {}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct MyResult(Result<Ok, Error>);
+pub type MyResult = Result<Ok, Error>;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Input {
@@ -107,8 +66,6 @@ pub struct ReadOutput {
     pub is_account_name_used:  bool,
 }
 
-pub trait DatabaseRead: types::DatabaseRead<Input = ReadInput, Output = ReadOutput> {}
-
 impl Input {
     pub(crate) fn state_less_check(&self) -> Error {
         let mut errr = Error::default();
@@ -127,15 +84,19 @@ impl Input {
         errr
     }
 
-    pub(crate) async fn state_full_check(&self, reader: &dyn DatabaseRead) -> Result<Error> {
-        let read_output = reader
-            .read(&ReadInput {
-                user_uuid:         self.user_uuid.clone(),
-                new_uuid:          self.new_uuid.clone(),
-                belong_to_company: self.belong_to_company.clone(),
-                account_name:      self.account_name.clone(),
-            })
-            .await?;
+    pub(crate) async fn state_full_check<
+        Db: DatabaseRead<Input = ReadInput, Output = ReadOutput>,
+    >(
+        &self,
+        db: &mut Db::Db<'_>,
+    ) -> Result<Error> {
+        let read_output = Db::read(db, &ReadInput {
+            user_uuid:         self.user_uuid.clone(),
+            new_uuid:          self.new_uuid.clone(),
+            belong_to_company: self.belong_to_company.clone(),
+            account_name:      self.account_name.clone(),
+        })
+        .await?;
 
         let mut errr = Error::default();
 

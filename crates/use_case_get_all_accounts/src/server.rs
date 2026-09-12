@@ -4,25 +4,21 @@ use crate::domain::ReadInput;
 use crate::domain::ReadOutput;
 use anyhow::Result;
 use kernel::make_auth_check;
-use kernel::server::GenericServerOperationsInput;
+use kernel::server::DBClient;
 use kernel::server::SideEffects;
 use kernel::types::DatabaseRead;
 use kernel::types::MyErrorTrait;
 use kernel::types::UserUuidError;
 
-impl GenericServerOperationsInput for Input {
-    type ReadInput = ReadInput;
-    type ReadOutput = ReadOutput;
-    type Result = MyResult;
-
-    async fn handle_operation_generic<
-        DD,
-        DBReader: for<'a> DatabaseRead<Db<'a> = DD, Input = Self::ReadInput, Output = Self::ReadOutput>,
+impl Input {
+    pub async fn handle_operation_generic<
+        Cli: DBClient,
+        DBReader: for<'a> DatabaseRead<Db<'a> = Cli, Input = ReadInput, Output = ReadOutput>,
     >(
         &self,
         side_effects: &mut SideEffects,
-        client: &mut DBReader::Db<'_>,
-    ) -> Result<Self::Result> {
+        client: &mut Cli,
+    ) -> Result<MyResult> {
         let mut errr = self.state_less_check();
         make_auth_check!(side_effects, self, errr);
 

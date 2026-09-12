@@ -2,10 +2,8 @@ use crate::new_types::BranchUuid;
 use crate::new_types::CompanyUuid;
 use crate::new_types::NonceUuid;
 use crate::new_types::UserUuid;
-use crate::request_response::OperationsInput;
 use crate::request_response::OperationsResult;
 use crate::request_response::TypeResourceDTO;
-use crate::types::DatabaseRead;
 use anyhow::Result;
 use std::any::Any;
 use std::collections::HashMap;
@@ -27,9 +25,9 @@ pub mod domain_errors {
 
 pub trait DBTransaction {
     fn commit_transaction(
-        self,
+        self: Box<Self>,
     ) -> Pin<Box<dyn Future<Output = Result<Result<(), domain_errors::AtCommit>>>>>;
-    fn rollback_transaction(self) -> Pin<Box<dyn Future<Output = Result<()>>>>;
+    fn rollback_transaction(self: Box<Self>) -> Pin<Box<dyn Future<Output = Result<()>>>>;
 }
 
 pub trait DBClient {
@@ -78,17 +76,22 @@ pub trait ServerOperationsInput {
     ) -> Pin<Box<dyn Future<Output = Result<Box<dyn OperationsResult>>> + 'a>>;
 }
 
-pub trait GenericServerOperationsInput {
-    type Result;
-    type ReadInput;
-    type ReadOutput;
+// pub trait GenericServerOperationsInput {
+//     type Result;
+//     type ReadInput;
+//     type ReadOutput;
+//     type Db: ?Sized;
+//     type OIIJoj: ?Sized;
 
-    fn handle_operation_generic<
-        DD,
-        DBReader: for<'a> DatabaseRead<Db<'a> = DD, Input = Self::ReadInput, Output = Self::ReadOutput>,
-    >(
-        &self,
-        side_effects: &mut SideEffects,
-        client: &mut DBReader::Db<'_>,
-    ) -> impl Future<Output = Result<Self::Result>>;
-}
+//     fn handle_operation_generic<
+//         DBReader: for<'a> DatabaseRead<
+//                 Db<'a> = Self::OIIJoj,
+//                 Input = Self::ReadInput,
+//                 Output = Self::ReadOutput,
+//             >,
+//     >(
+//         &self,
+//         side_effects: &mut SideEffects,
+//         client: &mut Self::Db,
+//     ) -> impl Future<Output = Result<Self::Result>>;
+// }

@@ -1,4 +1,3 @@
-use dyn_clone::DynClone;
 use infrastructure::actors::Mpsc;
 use infrastructure::actors::MpscReceiver;
 use infrastructure::actors::MpscSender;
@@ -10,35 +9,35 @@ use infrastructure::runtime::Rt;
 use infrastructure::runtime::Runtime;
 use serde::Deserialize;
 use serde::Serialize;
+use std::any::Any;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Subscribe(u32);
 
-pub trait OpInputTrait: Debug + DynClone {}
-pub trait OpResultTrait: Debug + DynClone {}
-
-pub type OpInput = Box<dyn OpInputTrait>;
-pub type OpResult = Box<dyn OpResultTrait>;
-
-impl Clone for OpInput {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
-    }
+pub trait OpInputTrait: Debug {}
+pub trait OpResultTrait: Debug {
+    fn into_any(self: Arc<Self>) -> Box<dyn Any>;
 }
+
+#[derive(Debug, Clone)]
+pub struct OpInput(Arc<dyn OpInputTrait>);
+#[derive(Debug, Clone)]
+pub struct OpResult(Arc<dyn OpResultTrait>);
 
 impl<T: OpInputTrait + 'static> From<T> for OpInput {
     fn from(value: T) -> Self {
-        Box::new(value)
+        Self(Arc::new(value))
     }
 }
 
-impl Clone for OpResult {
-    fn clone(&self) -> Self {
-        dyn_clone::clone_box(&**self)
+impl OpResult {
+    pub fn downcast<T: 'static>(self) -> T {
+        *self.0.into_any().downcast::<T>().unwrap()
     }
 }
 
